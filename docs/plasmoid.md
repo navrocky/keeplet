@@ -9,8 +9,8 @@ package/
     │   └── providers/             contract.js, registry.js, fake.js, keep/{index,gauth,keepapi,nodes}.js
     ├── ui/
     │   ├── main.qml               PlasmoidItem: wires services and ViewModels, picks the View
-    │   ├── viewmodel/             AccountsViewModel, NotesViewModel (QtObject, no visuals)
-    │   ├── views/                 SignInView, NotesRoot (navigation), NotesScreen, LabelRail, NoteScreen,
+    │   ├── viewmodel/             AccountsViewModel, NotesViewModel, NoteEditorViewModel (QtObject, no visuals)
+    │   ├── views/                 SignInView, NotesRoot (navigation), NotesScreen, LabelRail, NoteScreen (editor),
     │   │                          NoteCard, ColorPicker, keepColors.js (layout + bindings)
     │   ├── services/              LocalDb, SecretStore, AccountsService, NotesCache (platform APIs)
     │   └── configGeneral.qml      settings page
@@ -41,7 +41,16 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   text; `DEFAULT`/unknown names use the theme. `dark` comes from the theme background luminance
   (`KeepColors.isDark(Kirigami.Theme.backgroundColor)`); `NoteCard`, `NoteScreen` and `ColorPicker` expose it as an
   overridable `dark` property for previews and tests. `tests/tst_keepcolors.qml` enforces WCAG contrast >= 4.5.
-- `ColorPicker` only emits `picked(name)`; applying the color needs the write path (stage C/D).
+- `ColorPicker` only emits `picked(name)`; `NoteScreen` hosts it in a popup and calls `NoteEditorViewModel.setColor`.
+
+## Editor
+- `NoteEditorViewModel` keeps a working copy of the open note, records undo steps in `core/history.js`
+  (typing coalesces per field, other actions are separate steps) and saves through `NotesViewModel.saveNote`
+  after `saveDelay`, on close and when the open note changes. The history is dropped when the note closes.
+- Views never recreate text fields while typing: the checklist `Repeater` uses the item *count* as its model and
+  each delegate reads its item by index, so focus survives every keystroke. Text fields bind to the working copy and
+  write back only when the text really differs (`onTextEdited` / equality guard), which also makes undo update them.
+- Undo/redo keys are handled in the fields' `Keys.onPressed` (text controls swallow the standard shortcuts).
 
 ## Gotchas
 - `console.log` goes to journald unless `QT_FORCE_STDERR_LOGGING=1` is set.
