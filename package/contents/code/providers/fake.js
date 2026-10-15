@@ -12,7 +12,7 @@ var icon = "applications-development"
 
 var capabilities = {
     labels: "multi", colors: ["DEFAULT", "RED", "BLUE"], checklists: true, nestedItems: false,
-    pinned: true, archive: true, trash: true, images: false, offlineEdit: false
+    pinned: true, archive: true, trash: true, images: false, write: true, offlineEdit: true
 }
 
 var credentialFields = [{ key: "name", label: "Name", secret: false }]
@@ -23,19 +23,43 @@ function signIn(creds) {
     return Promise.resolve({ accountId: creds.name, displayName: creds.name, secret: "fake-secret", meta: {} })
 }
 
+var _counter = 0
+
 function createSession(account, secret, options) {
     options = options || {}
+
+    function upsert(list, note) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].id === note.id) {
+                list[i] = note
+                return
+            }
+        }
+        list.push(note)
+    }
+
     return {
-        createState: function () { return { version: "", notes: [], labels: [] } },
+        createState: function () { return { version: "", notes: [], labels: [], pending: [] } },
 
         restoreState: function (obj) {
-            return obj && Array.isArray(obj.notes) && Array.isArray(obj.labels) ? obj : null
+            if (!obj || !Array.isArray(obj.notes) || !Array.isArray(obj.labels))
+                return null
+            obj.pending = Array.isArray(obj.pending) ? obj.pending : []
+            return obj
         },
 
-        sync: function (state, dirty) {
+        // Applies queued edits to the "server" (options.data), then pulls it. A failure keeps the queue.
+        sync: function (state) {
             if (options.fail)
                 return Promise.reject(options.fail)
             var data = options.data || { notes: [], labels: [] }
+            ;(state.pending || []).forEach(function (op) {
+                if (op.kind === "remove")
+                    data.notes = data.notes.filter(function (n) { return n.id !== op.id })
+                else
+                    upsert(data.notes, JSON.parse(JSON.stringify(op.note)))
+            })
+            state.pending = []
             state.notes = JSON.parse(JSON.stringify(data.notes))
             state.labels = JSON.parse(JSON.stringify(data.labels || []))
             state.version = String(Number(state.version || 0) + 1)
@@ -48,6 +72,28 @@ function createSession(account, secret, options) {
 
         labels: function (state) {
             return state.labels.map(function (l) { return { id: l.id, name: l.name } })
-        }
+        },
+
+        commit: function (state, snapshot) {
+            var note = Notes.makeNote(snapshot)
+            if (!note.id) {
+                _counter += 1
+                note.id = "fake-new-" + _counter
+            }
+            note.items = note.items.map(function (it, i) {
+                return { id: it.id || note.id + ".i" + i, text: it.text, checked: !!it.checked, indent: it.indent || 0 }
+            })
+            note.updated = "2026-12-31T00:00:00Z"
+            upsert(state.notes, note)
+            state.pending.push({ kind: "save", note: note })
+            return Notes.makeNote(note)
+        },
+
+        remove: function (state, noteId) {
+            state.notes = state.notes.filter(function (n) { return n.id !== noteId })
+            state.pending.push({ kind: "remove", id: noteId })
+        },
+
+        pending: function (state) { return state.pending.length }
     }
 }

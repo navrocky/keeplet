@@ -30,7 +30,7 @@ Session:
 |---|---|
 | `createState()` | empty opaque state (JSON-serializable; cached by the app) |
 | `restoreState(obj)` | validated state from cached JSON, or `null` |
-| `sync(state, dirty)` | `Promise<state>`; may mutate `state`; rejects with `ProviderError` |
+| `sync(state)` | `Promise<state>`: pushes the queue of local edits (if the provider supports writing), then pulls; may mutate `state`; rejects with `ProviderError` and keeps the queue |
 | `notes(state)` | array of normalized notes (shape in `core/notes.js`) |
 | `labels(state)` | `[{id, name}]` |
 

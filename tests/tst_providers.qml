@@ -42,12 +42,12 @@ TestCase {
 
     function test_keepProviderMeetsContract() {
         compare(Contract.validate(Keep).join("; "), "")
-        compare(Contract.validateSession(Keep.createSession(account, "master", {})).join("; "), "")
+        compare(Contract.validateSession(Keep.createSession(account, "master", {}), Keep.capabilities).join("; "), "")
     }
 
     function test_fakeProviderMeetsContract() {
         compare(Contract.validate(Fake).join("; "), "")
-        compare(Contract.validateSession(Fake.createSession(account, "s", {})).join("; "), "")
+        compare(Contract.validateSession(Fake.createSession(account, "s", {}), Fake.capabilities).join("; "), "")
     }
 
     function test_contractReportsProblems() {
@@ -63,7 +63,7 @@ TestCase {
         compare(Keep.capabilities.colors.length, 12)
         verify(Contract.validate({ id: "x", name: "X", icon: "i", capabilities: {
             labels: "none", colors: true, checklists: false, nestedItems: false, pinned: false, archive: false,
-            trash: false, images: false, offlineEdit: false
+            trash: false, images: false, write: false, offlineEdit: false
         }, credentialFields: [{ key: "k", label: "L" }], signIn: function () {}, createSession: function () {} })
             .some(function (p) { return p.indexOf("colors must be an array") >= 0 }))
     }
@@ -192,5 +192,145 @@ TestCase {
         s.sync(s.createState()).catch(function (e) { err = e })
         tryVerify(function () { return err !== null })
         compare(err.kind, "network")
+    }
+
+    // --- Keep write path
+
+    function noteSnapshot(title) {
+        return { id: "", type: "NOTE", title: title, text: "body", items: [], color: "DEFAULT",
+                 pinned: false, archived: false, trashed: false, labels: [] }
+    }
+
+    function keepSession(transport) {
+        return Keep.createSession(account, "master", { performOAuth: oauthOk({ n: 0 }), transport: transport })
+    }
+
+    // A transport that echoes back whatever nodes it receives, like the real server does.
+    function echoServer(log) {
+        return function (token, body) {
+            log.push(body)
+            return Promise.resolve({
+                toVersion: "v" + (log.length + 1), truncated: false,
+                nodes: JSON.parse(JSON.stringify(body.nodes)).map(function (n) { n.serverId = "S-" + n.id; return n })
+            })
+        }
+    }
+
+    function test_commitIsVisibleAtOnceAndReturnsIds() {
+        var s = keepSession(function () { return Promise.reject(new Error("offline")) })
+        var state = s.createState()
+        var note = s.commit(state, noteSnapshot("Hello"))
+        verify(note.id !== "")
+        compare(note.title, "Hello")
+        compare(note.text, "body")
+        compare(s.notes(state)[0].title, "Hello")
+        compare(s.pending(state), 2)   // the note and its body item
+    }
+
+    function test_syncSendsQueueAndClearsItOnSuccess() {
+        var log = []
+        var s = keepSession(echoServer(log))
+        var state = s.createState()
+        var note = s.commit(state, noteSnapshot("Hello"))
+        var done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(log[0].nodes.length, 2)
+        compare(s.pending(state), 0)
+        compare(state.nodes[note.id].serverId, "S-" + note.id)   // server echo replaced the local copy
+        compare(s.notes(state)[0].title, "Hello")
+    }
+
+    function test_failedSyncKeepsEditsForALaterAttempt() {
+        var fail = true
+        var log = []
+        var s = keepSession(function (t, body) {
+            return fail ? Promise.reject(new KeepApi.KeepApiError("Network")) : echoServer(log)(t, body)
+        })
+        var state = s.createState()
+        s.commit(state, noteSnapshot("Offline edit"))
+        var err = null
+        s.sync(state).catch(function (e) { err = e })
+        tryVerify(function () { return err !== null })
+        compare(err.kind, "network")
+        compare(s.pending(state), 2)
+        compare(s.notes(state)[0].title, "Offline edit")   // still visible
+
+        // The queue is part of the state, so it survives a restart through JSON.
+        var restored = s.restoreState(JSON.parse(JSON.stringify(state)))
+        compare(s.pending(restored), 2)
+
+        fail = false
+        var done = false
+        s.sync(restored).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(s.pending(restored), 0)
+        compare(log[0].nodes.length, 2)
+    }
+
+    function test_editMadeDuringTheRequestIsNotLostOrOverwritten() {
+        var s = Keep.createSession(account, "master", { performOAuth: oauthOk({ n: 0 }) })
+        var state = s.createState()
+        var note = s.commit(state, noteSnapshot("v1"))
+        // New server for this session: edit the note while the request is "in flight".
+        var s2 = keepSession(function (token, body) {
+            var edited = s.notes(state)[0]
+            edited.title = "v2 (during request)"
+            s.commit(state, edited)
+            return Promise.resolve({
+                toVersion: "v2", truncated: false,
+                nodes: JSON.parse(JSON.stringify(body.nodes)).map(function (n) { n.serverId = "S-" + n.id; return n })
+            })
+        })
+        var done = false
+        s2.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(s.notes(state)[0].title, "v2 (during request)")  // not overwritten by the older echo
+        compare(s.pending(state), 1)                              // the newer edit still waits to be sent
+    }
+
+    function test_removeDeletesNoteAndQueuesTombstones() {
+        var s = keepSession(echoServer([]))
+        var state = s.createState()
+        var note = s.commit(state, noteSnapshot("Doomed"))
+        var done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        s.remove(state, note.id)
+        compare(s.notes(state).length, 0)      // hidden at once
+        verify(s.pending(state) > 0)
+        done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(s.pending(state), 0)
+        compare(Object.keys(state.nodes).length, 0)   // tombstones are not kept
+    }
+
+    function test_restoreStateUpgradesOldCaches() {
+        var s = keepSession(function () {})
+        var st = s.restoreState({ version: "v", nodes: {}, labels: {} })
+        compare(s.pending(st), 0)
+        compare(st.rev, 0)
+    }
+
+    // --- fake provider write path
+
+    function test_fakeCommitSyncRoundTrip() {
+        var opts = { data: { notes: [], labels: [] } }
+        var s = Fake.createSession(account, "s", opts)
+        var state = s.createState()
+        var note = s.commit(state, { id: "", type: "NOTE", title: "Hi", items: [] })
+        compare(s.notes(state)[0].title, "Hi")
+        compare(s.pending(state), 1)
+        var done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(opts.data.notes.length, 1)
+        compare(s.pending(state), 0)
+        s.remove(state, note.id)
+        done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(opts.data.notes.length, 0)
     }
 }
