@@ -296,4 +296,21 @@ TestCase {
         Mut.commit(s, sn, ctx())
         compare(Mut.commitNote(s, snap(s, "n1"), ctx()).nodes.length, 0)
     }
+
+    function test_itemWhoseNodeWasDeletedIsCreatedAgainWithAFreshId() {
+        // Undo of "remove item": the snapshot still names the deleted item.
+        var s = stateWith()
+        var before = snap(s, "l1")
+        var removed = JSON.parse(JSON.stringify(before))
+        removed.items.splice(1, 1)
+        Mut.commit(s, removed, ctx())                       // "second" is now deleted locally
+        verify(Nodes.isDeleted(s.nodes["l1.b"]))
+
+        var r = Mut.commitNote(s, before, ctx())             // undo: the old snapshot comes back
+        var again = r.nodes.filter(function (n) { return n.text === "second" })[0]
+        verify(again.id !== "l1.b")
+        verify(!Nodes.isDeleted(again))
+        compare(again.parentId, "l1")
+        compare(r.nodes.filter(function (n) { return n.id === "l1.b" }).length, 0)   // the tombstone is left alone
+    }
 }

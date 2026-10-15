@@ -203,8 +203,14 @@ function commitNote(state, snap, ctx) {
 
     if (raw.type === "LIST") {
         var existing = _items(state, snap.id)
+        // An item id is "usable" when it names a live item of this list. A snapshot may carry the id of
+        // an item that was deleted meanwhile (undo of a removal): that item is created again, with a new id.
+        function usable(it) {
+            var r = it.id ? state.nodes[it.id] : null
+            return !!r && !Nodes.isDeleted(r) && r.parentId === snap.id
+        }
         var wantedIds = {}
-        ;(snap.items || []).forEach(function (it) { if (it.id) wantedIds[it.id] = true })
+        ;(snap.items || []).forEach(function (it) { if (usable(it)) wantedIds[it.id] = true })
 
         existing.forEach(function (n) {
             if (!wantedIds[n.id]) {
@@ -218,7 +224,8 @@ function commitNote(state, snap, ctx) {
         })
 
         var items = (snap.items || []).map(function (it) {
-            return { id: it.id || ctx.newId(), text: it.text, checked: it.checked, indent: it.indent || 0, isNew: !it.id || !state.nodes[it.id] }
+            var isNew = !usable(it)
+            return { id: isNew ? ctx.newId() : it.id, text: it.text, checked: it.checked, indent: it.indent || 0, isNew: isNew }
         })
         var parents = _parents(items)
         var sorts = _assignSorts(items.map(function (it) {
