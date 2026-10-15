@@ -9,7 +9,8 @@ Google Keep notes in a KDE Plasma 6 widget, on your panel or desktop.
 
 ## Features
 - Text notes and checklists (with nested items)
-- Edit, pin, archive, trash, with undo/redo
+- Create, edit, pin, archive, trash, with undo/redo
+- Drag a note onto a group to label it
 - Colors (light and dark theme) and labels
 - Search and label filter
 - Images in notes (view only)
@@ -63,9 +64,14 @@ Google account → *Security* → *Your devices*.
   items, color, pin. The history is dropped when you leave the note.
 - The color button opens the palette; the pin button pins the note; the **⋮** menu archives it or moves it to the trash.
   A note in the trash is read-only until you restore it or delete it for good.
+- The **+** button creates a note or a list (in the account and label you are looking at).
+- **Drag a note to the left** onto a group in the rail to put it into that label; drop it on **No label**
+  to remove its labels. Groups that can't take the note don't light up. A short **Undo** notice follows.
+- Right-click a note for pin, color, archive and trash. In the trash: restore, delete forever, or **Empty trash**.
+- The tag button in an open note switches its labels on and off.
 - The search box filters the notes of the selected group.
 
-_Creating notes, choosing labels and drag-and-drop into groups are in progress._
+_Creating and renaming labels, and reordering checklist items, are not available yet._
 
 ## Uninstall
 Right-click the widget → *Remove*, then:

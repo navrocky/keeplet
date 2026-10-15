@@ -46,6 +46,8 @@ directory and opens it with `plasmawindowed`. Re-run after each QML change.
   - `tst_providers` — provider contract, Keep session on a fake transport, fake provider.
   - `tst_notesviewmodel`, `tst_accountsviewmodel` — ViewModels with fake sessions, cache and service.
   - Fixtures are hand-made and anonymized; never commit real notes.
+- UI tests with synthetic mouse events on the real screens (`tests-ui/`, needs the Plasma QML modules on this
+  machine; not run by `build.sh`): `scripts/test-ui.sh`.
 - Manual end-to-end checklist before a release:
   1. Fresh install, sign in with an `oauth_token`.
   2. Notes appear; colors, pins, labels match keep.google.com.
@@ -53,6 +55,8 @@ directory and opens it with `plasmawindowed`. Re-run after each QML change.
   4. Edit on the web → visible in the widget after sync.
   5. Sign out → KWallet entry (or config key) removed.
   6. Repeat 1–2 with KWallet disabled (fallback storage).
+  7. Create a note and a list; edit, undo/redo, change color and labels; trash and restore; empty trash.
+  8. Drag a note onto a label and onto "No label"; check it on the web; use the Undo notice.
 
 ## Stage 0 spikes
 `spike/` holds the prototypes that decided the auth design

@@ -51,6 +51,16 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   each delegate reads its item by index, so focus survives every keystroke. Text fields bind to the working copy and
   write back only when the text really differs (`onTextEdited` / equality guard), which also makes undo update them.
 - Undo/redo keys are handled in the fields' `Keys.onPressed` (text controls swallow the standard shortcuts).
+- A new note is a *draft* in `NotesViewModel` (`draftKey` = `"<new>"`): it is created in the provider on the first
+  change, the editor keeps its history, and the key stays `"<new>"` while the editor is open.
+
+## List interactions
+- Drag onto a group: `NoteCard` has a `DragHandler` with only the x axis enabled, so vertical drags keep
+  scrolling the list; a ghost in the window overlay follows the pointer (`Drag.active`), the rail rows are
+  `DropArea`s that ask `NotesViewModel.canDrop` and call `dropNote`. The ghost layer is invisible unless a drag is
+  running, because an invisible-but-present full-size layer in the overlay swallows clicks.
+- Everything else goes through `NotesViewModel` commands; trash/archive/drop are undoable via `lastAction`/`undoLast`.
+- `scripts/test-ui.sh` runs `tests-ui/` with synthetic mouse events on the real screens (needs the Plasma QML modules).
 
 ## Gotchas
 - `console.log` goes to journald unless `QT_FORCE_STDERR_LOGGING=1` is set.
