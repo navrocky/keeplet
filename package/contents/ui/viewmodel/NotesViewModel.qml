@@ -338,6 +338,8 @@ QtObject {
             }),
             color: note.color || "DEFAULT", pinned: !!note.pinned, archived: !!note.archived,
             trashed: !!note.trashed,
+            // Position in the account's own order; providers that can reorder compare it with the stored one.
+            order: typeof note.order === "number" ? note.order : undefined,
             labels: (note.labels || []).map(function (l) { return { id: l.id, name: l.name } })
         }
     }

@@ -75,7 +75,12 @@ function createSession(account, secret, options) {
         },
 
         commit: function (state, snapshot) {
+            var existing = null
+            state.notes.forEach(function (n) { if (n.id === snapshot.id) existing = n })
             var note = Notes.makeNote(snapshot)
+            // Without an explicit position a note keeps the one it has.
+            if (snapshot.order === undefined)
+                note.order = existing && existing.order !== undefined ? existing.order : 0
             if (!note.id) {
                 _counter += 1
                 note.id = "fake-new-" + _counter
