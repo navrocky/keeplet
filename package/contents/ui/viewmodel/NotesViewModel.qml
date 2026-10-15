@@ -58,6 +58,8 @@ QtObject {
     property var lastAction: null
     // Account that received the last new note; the default target for the next one.
     property string lastAccountKey: ""
+    // Whether at least one account in view can hold a new note (enables the "new note" control).
+    readonly property bool canCreate: Object.keys(_accs).some(function (k) { return canWrite(k) })
 
     // --- Private
     property var draft: null          // a new note that has no id yet

@@ -703,4 +703,14 @@ TestCase {
         compare(c.vm.labelsOf("fake:work")[0].name, "Work")
         compare(c.vm.labelsOf("nope").length, 0)
     }
+
+    function test_canCreateFollowsWritableAccounts() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.canCreate)
+        var ro = make([entryCaps(keepAcc, { data: personalData() }, { write: false })])
+        tryVerify(function () { return ro.vm.loaded })
+        verify(!ro.vm.canCreate)
+        verify(!make([]).vm.canCreate)
+    }
 }
