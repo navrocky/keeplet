@@ -42,6 +42,9 @@ directory and opens it with `plasmawindowed`. Re-run after each QML change.
 ## Tests
 - Unit tests: `tests/tst_*.qml` (QtTest), run by `build.sh`, or locally:
   `QT_QPA_PLATFORM=offscreen qmltestrunner6 -input tests`.
+  - `tst_nodes`, `tst_keepapi`, `tst_gauth`, `tst_util` — Model.
+  - `tst_notesviewmodel` — ViewModel with fake `auth`, `cache` and `transport`.
+  - Fixtures are hand-made and anonymized; never commit real notes.
 - Manual end-to-end checklist before a release:
   1. Fresh install, sign in with an `oauth_token`.
   2. Notes appear; colors, pins, labels match keep.google.com.

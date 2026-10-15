@@ -2,16 +2,20 @@
 
 ```
 package/
-├── metadata.json            KPackage metadata; Version is stamped by the build
+├── metadata.json                  KPackage metadata; Version is stamped by the build
 └── contents/
-    ├── ui/main.qml          PlasmoidItem: compact (icon) + full (sign-in or notes) representation
-    ├── ui/Auth.qml          account state (sign in/out, token cache)
-    ├── ui/SecretStore.qml   KWallet / config fallback
-    ├── ui/SignInView.qml    sign-in form shown in the popup
-    ├── ui/configGeneral.qml settings page
-    ├── ui/*.qml             (stage 2+) NoteCard, NoteEditor, ListNoteEditor
-    ├── code/*.js            util.js, keepapi.js, model.js, store.js (`.pragma library` where stateless)
-    └── config/              main.xml (KConfigXT schema), config.qml (config pages)
+    ├── code/                      Model: pure JS (.pragma library), no UI
+    │   ├── util.js                key=value parsing, form encoding
+    │   ├── gauth.js               gpsoauth port (exchange_token, perform_oauth)
+    │   ├── keepapi.js             /changes transport, pagination, full resync
+    │   └── nodes.js               node graph state, applyChanges, buildNotes/buildLabels
+    ├── ui/
+    │   ├── main.qml               PlasmoidItem: wires ViewModels, picks the View
+    │   ├── viewmodel/             AuthViewModel, NotesViewModel (QtObject, no visuals)
+    │   ├── views/                 SignInView, NotesView, NoteCard (layout + bindings)
+    │   ├── services/              SecretStore (KWallet/config), NotesCache (LocalStorage)
+    │   └── configGeneral.qml      settings page
+    └── config/                    main.xml (KConfigXT schema), config.qml (config pages)
 ```
 
 Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved for KDE projects).
@@ -20,7 +24,10 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 - Only modules shipped with Plasma 6 / Qt 6 / Kirigami. No compiled plugins.
 - HTTP via `XMLHttpRequest`; JSON in/out. Don't use `Content-Type` charset tricks: Qt appends `;charset=UTF-8`.
 - D-Bus via `org.kde.plasma.workspace.dbus` (see [auth.md](auth.md) for its quirks).
-- User-visible strings through `i18n()`.
+- MVVM layering rules are in [architecture.md](architecture.md): `i18n()` only in Views; ViewModels
+  report errors as codes; dependencies are injected as `var` properties so tests can fake them.
+- ViewModel tests import the `viewmodel/` directory but must not pull in `services/` (they need
+  D-Bus / LocalStorage modules that the build image doesn't have).
 - Sign-in lives in the popup, not in the settings dialog: the dialog writes every declared
   `cfg_*` back on Apply and could resurrect a token after sign-out. So account entries in
   `config/main.xml` are never declared as `cfg_*` in config pages.

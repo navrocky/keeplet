@@ -1,5 +1,6 @@
 import QtQuick
-import "../code/gauth.js" as GAuth
+import "../../code/gauth.js" as GAuth
+import "../services"
 
 // Account state: sign in/out, master token persistence, cached Keep auth token.
 QtObject {
@@ -10,8 +11,10 @@ QtObject {
     readonly property string email: configuration.email
     property bool signedIn: false
     property bool busy: false
-    // Last user-facing error, empty when fine.
+    // Last error as a code for the View to translate; empty when fine.
+    // "network" | "badToken" | "sessionExpired" | "storage" | "failed"
     property string error: ""
+    property string errorDetail: ""
     readonly property alias storage: store.backend
 
     property string _master: ""
@@ -24,12 +27,14 @@ QtObject {
         configuration: auth.configuration
     }
 
-    function _describe(e) {
+    function _fail(e) {
+        errorDetail = String(e)
         if (GAuth.isNetworkError(e))
-            return i18n("Can't reach Google. Check your connection.")
-        if (e && e.code === "BadAuthentication")
-            return i18n("Google rejected the token. Get a new oauth_token and try again.")
-        return i18n("Sign-in failed: %1", String(e))
+            error = "network"
+        else if (e && e.code === "BadAuthentication")
+            error = "badToken"
+        else
+            error = "failed"
     }
 
     function restore() {
@@ -40,7 +45,8 @@ QtObject {
             _master = master || ""
             signedIn = _master !== ""
         }).catch(function (e) {
-            error = i18n("Can't read the saved key: %1", String(e))
+            error = "storage"
+            errorDetail = String(e)
         }).then(function () {
             busy = false
         })
@@ -64,7 +70,7 @@ QtObject {
             signedIn = true
             return token()
         }).catch(function (e) {
-            error = _describe(e)
+            _fail(e)
         }).then(function () {
             busy = false
         })
@@ -76,6 +82,7 @@ QtObject {
         _master = ""
         _token = ""
         error = ""
+        errorDetail = ""
         configuration.email = ""
         configuration.androidId = ""
         if (old)
@@ -100,7 +107,7 @@ QtObject {
             if (!GAuth.isNetworkError(e)) {
                 // Master token revoked or broken: the user has to sign in again.
                 signOut()
-                error = i18n("Your Google session has expired. Please sign in again.")
+                error = "sessionExpired"
             }
             throw e
         })

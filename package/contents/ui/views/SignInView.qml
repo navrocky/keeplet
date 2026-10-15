@@ -2,13 +2,25 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
+import "../viewmodel"
 
 ColumnLayout {
     id: view
 
-    required property Auth auth
+    required property AuthViewModel auth
 
     spacing: Kirigami.Units.largeSpacing
+
+    function errorText(code, detail) {
+        switch (code) {
+        case "": return ""
+        case "network": return i18n("Can't reach Google. Check your connection.")
+        case "badToken": return i18n("Google rejected the token. Get a new oauth_token and try again.")
+        case "sessionExpired": return i18n("Your Google session has expired. Please sign in again.")
+        case "storage": return i18n("Can't read the saved key: %1", detail)
+        default: return i18n("Sign-in failed: %1", detail)
+        }
+    }
 
     Kirigami.Heading {
         Layout.fillWidth: true
@@ -74,7 +86,7 @@ ColumnLayout {
     Kirigami.InlineMessage {
         Layout.fillWidth: true
         type: Kirigami.MessageType.Error
-        text: view.auth.error
+        text: view.errorText(view.auth.error, view.auth.errorDetail)
         visible: text !== ""
     }
 

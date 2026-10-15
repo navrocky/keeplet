@@ -9,6 +9,16 @@ It uses Google Keep's private mobile API (protocol ported from gkeepapi/gpsoauth
 - Never log or print tokens (oauth_token, master token, auth token); mask them.
 - Master token lives in KWallet when it is enabled, otherwise in the widget config (see [docs/auth.md](docs/auth.md)).
 
+## Architecture rule: MVVM
+- **Model** — `package/contents/code/*.js`: pure JS (state, protocol, auth). No QML items, no `i18n`.
+- **ViewModel** — `package/contents/ui/viewmodel/*.qml`: `QtObject`s with state, derived lists and commands.
+  No visual items, no user-facing strings (expose error *codes*). Dependencies are injected
+  (`auth`, `cache`, `transport`) so they are unit-testable without Plasma.
+- **View** — `package/contents/ui/views/*.qml`: layout and bindings only; call ViewModel commands,
+  never talk to Model/network/storage directly. All `i18n()` lives here.
+- `package/contents/ui/services/*.qml` wrap platform APIs (KWallet, LocalStorage) for the ViewModels.
+- Details: [docs/architecture.md](docs/architecture.md).
+
 ## Commands
 - `scripts/build.sh` — tests + lint + `dist/keeplet-<version>.plasmoid` (Docker/Podman, nothing else needed).
 - `scripts/install.sh [file]` / `scripts/install.sh --remove` — install into the current user's Plasma.
