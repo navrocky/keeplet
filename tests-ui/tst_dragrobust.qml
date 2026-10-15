@@ -58,7 +58,8 @@ Item {
         }
         function center(item) { return item.mapToItem(win, item.width / 2, item.height / 2) }
         function card(id) {
-            return find(win.screen, function (i) { return i.note !== undefined && i.note && i.note.id === id && i.width > 100 })
+            var c = find(win.screen, function (i) { return i.note !== undefined && i.note && i.note.id === id && i.width > 100 })
+            return c
         }
         function rail() {
             return find(win.screen, function (i) { return i.hasOwnProperty("collapsed") && i.hasOwnProperty("multiAccount") })
@@ -66,8 +67,18 @@ Item {
         function group(key) {
             return find(rail(), function (i) { return i.modelData !== undefined && i.modelData && i.modelData.key === key })
         }
+        // The notes list: of the ListViews on the screen (groups rail, notes) the widest one.
         function list() {
-            return find(win.screen, function (i) { return i.hasOwnProperty("contentY") && i.hasOwnProperty("count") })
+            var best = null
+            function visit(item) {
+                if (item.hasOwnProperty("contentY") && item.hasOwnProperty("count") && item.hasOwnProperty("displaced")
+                        && (best === null || item.width > best.width))
+                    best = item
+                for (var i = 0; i < item.children.length; i++)
+                    visit(item.children[i])
+            }
+            visit(win.screen)
+            return best
         }
         // The drag layer (DragLayer.qml): `active` while a note is being dragged.
         function dragLayer() {
@@ -84,7 +95,17 @@ Item {
             wait(300)
         }
 
-        function init() { wait(400) }
+        function init() {
+            // Every test starts from the same screen, whatever the previous one did.
+            notes.closeNote()
+            notes.dismissAction()
+            notes.select("all")
+            notes.railCollapsed = false
+            var l = list()
+            if (l)
+                l.contentY = l.originY
+            wait(500)
+        }
 
         function test_dragKeepsTheScreenIntactAndEndsCleanly() {
             var from = card("n1"), to = group("label:fake:me|L2")
@@ -148,6 +169,108 @@ Item {
             mouseMove(win, b.x + 1, b.y, 0, Qt.LeftButton)
             mouseRelease(win, b.x, b.y)
             tryVerify(function () { return notes.noteByKey("fake:me/n0").labels.length === 1 })
+        }
+
+        // --- effects
+
+        function ghostItem() {
+            return find(dragLayer(), function (i) { return i.hasOwnProperty("animate") && i.hasOwnProperty("border") })
+        }
+        // Starts carrying card `id` (a few pixels to the left are enough to pick it up).
+        function pickUp(id) {
+            var a = center(card(id))
+            mousePress(win, a.x, a.y)
+            mouseMove(win, a.x - 6, a.y, 0, Qt.LeftButton)
+            mouseMove(win, a.x - 14, a.y + 2, 0, Qt.LeftButton)
+            tryVerify(function () { return dragLayer().active })
+            return a
+        }
+        function putDown(x, y) {
+            mouseRelease(win, x, y)
+            tryVerify(function () { return !dragLayer().active })
+            wait(500)
+        }
+
+        function test_listScrollsWhenTheCardIsHeldAtTheEdges() {
+            var l = list()
+            verify(l.contentHeight > l.height * 1.5, "the list is taller than its view")
+            l.contentY = l.originY
+            var a = pickUp("n1")
+            var top = l.mapToItem(win, 0, 0), x = top.x + l.width / 2
+
+            mouseMove(win, x, top.y + l.height - 4, 0, Qt.LeftButton)      // bottom edge
+            wait(700)
+            var down = l.contentY
+            verify(down > l.originY + 40, "scrolled down: " + down)
+
+            mouseMove(win, x, top.y + 4, 0, Qt.LeftButton)                  // top edge
+            wait(900)
+            verify(l.contentY < down - 20, "scrolled back up: " + l.contentY + " from " + down)
+
+            mouseMove(win, x, top.y + l.height / 2, 0, Qt.LeftButton)      // middle: stays
+            wait(100)
+            var still = l.contentY
+            wait(300)
+            compare(l.contentY, still)
+            putDown(x, top.y + l.height / 2)
+            l.contentY = l.originY
+        }
+
+        function test_listStopsAtTheEnds() {
+            var l = list()
+            l.contentY = l.originY
+            var a = pickUp("n1")
+            var top = l.mapToItem(win, 0, 0), x = top.x + l.width / 2
+            mouseMove(win, x, top.y + 2, 0, Qt.LeftButton)                  // already at the top
+            wait(300)
+            verify(l.contentY >= l.originY - 0.5, "not above the first card")
+            putDown(x, top.y + 2)
+        }
+
+        function test_groupsGrowAndOthersDimWhileCarrying() {
+            var a = pickUp("n3")        // a note without labels, so every label group can take it
+            var home = group("label:fake:me|L2"), all = group("all")
+            verify(home.scale <= 1.001 && all.opacity > 0.99, "nothing changed before carrying over groups")
+            tryVerify(function () { return home.scale > 1.01 }, 2000, "groups that can take the note grow")
+            tryVerify(function () { return all.opacity < 0.7 }, 2000, "groups that refuse dim")
+
+            var b = center(home)
+            mouseMove(win, b.x, b.y, 0, Qt.LeftButton)
+            mouseMove(win, b.x + 1, b.y, 0, Qt.LeftButton)
+            tryVerify(function () { return home.scale > 1.07 }, 2000, "the hovered group grows more")
+            putDown(5, 5)                                                    // not a drop on the group
+            // The rail is rebuilt after a drop, so look the rows up again.
+            tryVerify(function () {
+                var h = group("label:fake:me|L2"), al = group("all")
+                return h && al && h.scale < 1.001 && al.opacity > 0.99
+            }, 2000, "back to normal")
+        }
+
+        function test_carriedCardsSlotClosesAndTheOthersSlideTogether() {
+            var l = list()
+            l.contentY = l.originY
+            var before = card("n2").mapToItem(l.contentItem, 0, 0).y
+            var cardHeight = card("n1").height
+            var a = pickUp("n1")
+            tryVerify(function () { return card("n2").mapToItem(l.contentItem, 0, 0).y < before - cardHeight * 0.8 },
+                      2000, "n2 moved up into the closed slot")
+            putDown(5, 5)
+            tryVerify(function () { return Math.abs(card("n2").mapToItem(l.contentItem, 0, 0).y - before) < 2 },
+                      2000, "n2 is back after the drop on nothing")
+        }
+
+        function test_ghostShrinksFromTheCardToAChip() {
+            var cardWidth = card("n1").width
+            var a = center(card("n1"))
+            mousePress(win, a.x, a.y)
+            mouseMove(win, a.x - 6, a.y, 0, Qt.LeftButton)
+            mouseMove(win, a.x - 14, a.y + 2, 0, Qt.LeftButton)
+            tryVerify(function () { return dragLayer().active })
+            var g = ghostItem()
+            verify(g, "ghost found")
+            tryVerify(function () { return g.width < cardWidth * 0.8 }, 2000, "ghost became a chip")
+            verify(g.width > 40)
+            putDown(5, 5)
         }
     }
 }
