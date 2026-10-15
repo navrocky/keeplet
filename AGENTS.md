@@ -4,9 +4,8 @@ Keeplet is a KDE Plasma 6 widget (plasmoid) that works as a Google Keep client.
 It uses Google Keep's private mobile API (protocol ported from gkeepapi/gpsoauth).
 
 ## Hard constraints
-- Widget is pure QML/JS, installable from KDE Store: no compiled QML plugins, no Python.
-- A native helper (`keeplet-auth`, Rust) is allowed **only** if stage 0 proves it necessary — see
-  [docs/decisions/0001-auth-helper.md](docs/decisions/0001-auth-helper.md).
+- Widget is pure QML/JS, installable from KDE Store: no native code, no compiled QML plugins, no Python
+  ([why it's enough](docs/decisions/0001-auth-helper.md)).
 - Never log or print tokens (oauth_token, master token, auth token); mask them.
 - Master token lives in KWallet when it is enabled, otherwise in the widget config (see [docs/auth.md](docs/auth.md)).
 

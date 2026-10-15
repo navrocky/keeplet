@@ -22,8 +22,8 @@ Google's Terms of Service.
 │ store.js ─ QtQuick.LocalStorage (cached nodes, sync version)
 └──────────────────────────────────────────────────────────────┘
 ```
-If stage 0 shows that `/auth` rejects Qt's TLS client, auth moves into a bundled static
-helper `keeplet-auth` (Rust); see [decisions/0001-auth-helper.md](decisions/0001-auth-helper.md).
+No native code: stage 0 showed that both `/auth` and `/changes` work from QML XHR
+([decisions/0001-auth-helper.md](decisions/0001-auth-helper.md)).
 
 ## Data flow
 1. Login (once): user pastes `oauth_token` → exchanged for a long-lived **master token** → stored.

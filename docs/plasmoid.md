@@ -20,5 +20,6 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 
 ## Gotchas
 - `console.log` goes to journald unless `QT_FORCE_STDERR_LOGGING=1` is set.
+- Synchronous `file://` PUT via XHR truncates the file and writes nothing; use async (only relevant for tooling).
 - plasmashell caches QML of loaded widgets; restart it after reinstalling (see [development.md](development.md)).
 - `Plasma5Support` `executable` DataSource runs shell commands; avoid passing secrets through it (visible in `ps`).

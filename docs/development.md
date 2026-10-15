@@ -49,7 +49,7 @@ directory and opens it with `plasmawindowed`. Re-run after each QML change.
   6. Repeat 1–2 with KWallet disabled (fallback storage).
 
 ## Stage 0 spikes
-`spike/` holds throwaway prototypes that decided the auth design
+`spike/` holds the prototypes that decided the auth design
 (see [decisions/0001-auth-helper.md](decisions/0001-auth-helper.md)):
 - `spike/run-auth.sh` — full auth chain + one `/changes` from pure QML. Prompts for e-mail and
   `oauth_token` (hidden), keeps state in `~/.cache/keeplet-spike/state.json` (0600). `--reset` to start over.

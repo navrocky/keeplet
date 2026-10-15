@@ -37,8 +37,9 @@ Result: `Auth=<token>`, `Expiry=<unix seconds>`.
 
 ## TLS fingerprint caveat
 gpsoauth forces an Android-like cipher list because `/auth` has rejected some TLS clients.
-Qt's TLS stack cannot be tuned from QML. Whether Qt is accepted is the subject of
-[decisions/0001-auth-helper.md](decisions/0001-auth-helper.md).
+Qt's TLS stack cannot be tuned from QML, but as of 2026-10 `/auth` accepts it
+([decisions/0001-auth-helper.md](decisions/0001-auth-helper.md)). If logins start failing with
+`BadAuthentication` for valid tokens, suspect this first.
 
 ## Storing the master token
 Preferred: KWallet over D-Bus from QML (`org.kde.plasma.workspace.dbus`, ships with Plasma 6),

@@ -20,9 +20,18 @@ Item {
         x.send()
         return x.responseText
     }
-    function writeFile(path, text) {
+    // Async on purpose: a synchronous file:// PUT truncates the file and writes nothing (Qt 6.11).
+    function writeFile(path, text, cb) {
         var x = new XMLHttpRequest()
-        x.open("PUT", "file://" + path, false)
+        x.onreadystatechange = function () {
+            if (x.readyState !== 4) return
+            if (readFile(path) !== text) {
+                log("state", "FAILED to write " + path)
+                return finish(false)
+            }
+            cb()
+        }
+        x.open("PUT", "file://" + path)
         x.send(text)
     }
 
@@ -68,9 +77,10 @@ Item {
             if (!kv.Token) return finish(false)
             st.master_token = kv.Token
             delete st.oauth_token
-            writeFile(statePath, JSON.stringify(st))
-            log("exchange", "master token " + mask(st.master_token) + " saved")
-            cb()
+            writeFile(statePath, JSON.stringify(st), function () {
+                log("exchange", "master token " + mask(st.master_token) + " saved")
+                cb()
+            })
         })
     }
 
