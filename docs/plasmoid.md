@@ -55,10 +55,19 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   change, the editor keeps its history, and the key stays `"<new>"` while the editor is open.
 
 ## List interactions
-- Drag onto a group: `NoteCard` has a `DragHandler` with only the x axis enabled, so vertical drags keep
-  scrolling the list; a ghost in the window overlay follows the pointer (`Drag.active`), the rail rows are
-  `DropArea`s that ask `NotesViewModel.canDrop` and call `dropNote`. The ghost layer is invisible unless a drag is
-  running, because an invisible-but-present full-size layer in the overlay swallows clicks.
+- Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a right-button `TapHandler`
+  (context menu) and one `DragHandler` with only the x axis enabled (so vertical drags keep scrolling). Delegates
+  are destroyed when they scroll out of view; handlers on them would lose the end of a running drag.
+- `DragLayer` is the floating ghost. It is a **sibling** of the screen's layout (never inside it: a full-size
+  child of a layout takes the room of the content) and is invisible unless a drag runs. A drag always ends:
+  drop, cancel (selection, account filter or open note changed) or the watchdog.
+- Drop targets: rail rows are `DropArea`s that ask `NotesViewModel.canDrop` and call `dropNote`; if nobody takes
+  the note and the pointer is over the list, `moveNote` puts it at the insertion point (`insertBefore` /
+  `insertIndex` in `NotesScreen`; delegates open a gap, a footer item opens one at the end).
+- The carried card's slot collapses (height animation) so the other cards close the gap; the card keeps its size
+  inside the slot. While carrying, rail rows scale up if they can take the note and dim if not.
+- Edge scrolling: a 16 ms timer moves `contentY` while the pointer is within `scrollZone` of the list's top or
+  bottom (also above/below it), faster towards the edge.
 - Everything else goes through `NotesViewModel` commands; trash/archive/drop are undoable via `lastAction`/`undoLast`.
 - `scripts/test-ui.sh` runs `tests-ui/` with synthetic mouse events on the real screens (needs the Plasma QML modules).
 

@@ -89,5 +89,10 @@ Facts that shape the implementation:
 - Trash then delete both worked in separate requests; deleting a parent requires deleting its items too.
 - New list items used random positive `sortValue`s (1e9..1e10); items are displayed by descending `sortValue`.
 
+_Manual order of notes_ is the `sortValue` of the top-level node (shown by descending value; checklist items
+use the same field). The client writes it with `session.reorder`; **moving a note by changing `sortValue` is
+not yet verified against a real server** (`spike/run-write.sh` has a step for it: 4e/4f). If the server ignores
+it, the order simply snaps back at the next sync.
+
 _Still open:_ the meaning of `writeResults`, reordering existing items (sortValue renumbering), creating and
 renaming labels (`userInfo.labels`), images and drawings.

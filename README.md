@@ -66,7 +66,12 @@ Google account → *Security* → *Your devices*.
   A note in the trash is read-only until you restore it or delete it for good.
 - The **+** button creates a note or a list (in the account and label you are looking at).
 - **Drag a note to the left** onto a group in the rail to put it into that label; drop it on **No label**
-  to remove its labels. Groups that can't take the note don't light up. A short **Undo** notice follows.
+  to remove its labels. While you carry it the note shrinks to a chip, the groups that can take it grow and
+  the others dim. A short **Undo** notice follows. Hold the note near the top or bottom edge of the list to
+  scroll it.
+- **Drop a note between two others** to put it there (manual order, saved in Keep). The other notes move
+  apart and show the place. This works while the list shows one account, no search and not the trash;
+  pinned notes stay among the pinned ones.
 - Right-click a note for pin, color, archive and trash. In the trash: restore, delete forever, or **Empty trash**.
 - The tag button in an open note switches its labels on and off.
 - The search box filters the notes of the selected group.
