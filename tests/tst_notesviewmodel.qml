@@ -63,7 +63,7 @@ TestCase {
     function make(entries, withCache) {
         var accounts = accountsComp.createObject(tc, { sessions: entries })
         var cache = withCache === false ? null : cacheComp.createObject(tc)
-        var vm = vmComp.createObject(tc, { accounts: accounts, cache: cache })
+        var vm = vmComp.createObject(tc, { accounts: accounts, cache: cache, writeDelay: 20 })
         return { vm: vm, accounts: accounts, cache: cache }
     }
 
@@ -332,5 +332,136 @@ TestCase {
         c.vm.closeNote()
         compare(c.vm.currentNoteKey, "")
         verify(c.vm.currentNote === null)
+    }
+
+    // --- writing (stage C)
+
+    function first(vm, id) {
+        return vm.notes.filter(function (n) { return n.id === id })[0]
+    }
+
+    function test_saveNoteShowsEditAtOnceThenSyncs() {
+        var opts = { data: personalData() }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        var note = first(c.vm, "a")
+        note.title = "Alpha (edited)"
+        var key = c.vm.saveNote(note)
+        compare(key, "fake:me@x/a")
+        compare(first(c.vm, "a").title, "Alpha (edited)")   // visible before any network round trip
+        compare(c.vm.unsynced, 1)
+        tryVerify(function () { return c.vm.unsynced === 0 })
+        var server = opts.data.notes.filter(function (n) { return n.id === "a" })[0]
+        compare(server.title, "Alpha (edited)")
+        compare(c.vm.error, "")
+    }
+
+    function test_newNoteIsCreatedInTheChosenAccount() {
+        var opts = { data: workData() }
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, opts)])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        var key = c.vm.saveNote({ id: "", accountKey: "fake:work", type: "NOTE", title: "Fresh", text: "x",
+                                  items: [], labels: [] })
+        verify(key.indexOf("fake:work/") === 0)
+        tryVerify(function () { return c.vm.unsynced === 0 })
+        compare(opts.data.notes.length, 2)
+        compare(c.vm.notes.filter(function (n) { return n.title === "Fresh" }).length, 1)
+    }
+
+    function test_failedSendKeepsEditAndRetriesOnRefresh() {
+        var opts = { data: personalData() }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        opts.fail = new Errors.ProviderError("network")
+        var note = first(c.vm, "a")
+        note.title = "Offline edit"
+        c.vm.saveNote(note)
+        tryVerify(function () { return c.vm.error === "network" && !c.vm.syncing })
+        compare(c.vm.unsynced, 1)
+        compare(first(c.vm, "a").title, "Offline edit")      // still shown
+        opts.fail = null
+        c.vm.refresh()
+        tryVerify(function () { return c.vm.unsynced === 0 })
+        compare(opts.data.notes.filter(function (n) { return n.id === "a" })[0].title, "Offline edit")
+    }
+
+    function test_unsyncedEditsSurviveARestartThroughTheCache() {
+        var opts = { data: personalData() }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        opts.fail = new Errors.ProviderError("network")
+        var note = first(c.vm, "a")
+        note.title = "Survives restart"
+        c.vm.saveNote(note)
+        tryVerify(function () { return c.vm.error === "network" && !c.vm.syncing })
+
+        var accounts2 = accountsComp.createObject(tc, {
+            sessions: [entry(keepAcc, { data: personalData(), fail: new Errors.ProviderError("network") })] })
+        var restarted = vmComp.createObject(tc, { accounts: accounts2, cache: c.cache, writeDelay: 20 })
+        compare(restarted.unsynced, 1)
+        compare(restarted.notes.filter(function (n) { return n.id === "a" })[0].title, "Survives restart")
+    }
+
+    function test_removeNoteHidesItAndDeletesOnServer() {
+        var opts = { data: personalData() }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        verify(c.vm.removeNote(first(c.vm, "a")))
+        verify(first(c.vm, "a") === undefined)
+        tryVerify(function () { return c.vm.unsynced === 0 })
+        verify(opts.data.notes.every(function (n) { return n.id !== "a" }))
+    }
+
+    function test_trashAndRestoreGoThroughSaveNote() {
+        var opts = { data: personalData() }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        var note = first(c.vm, "a")
+        note.trashed = true
+        c.vm.saveNote(note)
+        verify(first(c.vm, "a") === undefined)
+        c.vm.select("trash")
+        verify(first(c.vm, "a") !== undefined)
+    }
+
+    function test_readOnlyProviderIsNotWritten() {
+        var fakeSession = Fake.createSession(keepAcc, "s", { data: personalData() })
+        var readOnly = {
+            account: keepAcc,
+            provider: { id: "ro", name: "RO", icon: "x", capabilities: { labels: "none", archive: true, trash: true, write: false } },
+            session: fakeSession
+        }
+        var c = make([readOnly])
+        tryVerify(function () { return c.vm.loaded })
+        verify(!c.vm.canWrite("fake:me@x"))
+        compare(c.vm.saveNote({ id: "a", accountKey: "fake:me@x", type: "NOTE", title: "x", items: [], labels: [] }), "")
+        compare(c.vm.unsynced, 0)
+    }
+
+    function test_unknownAccountIsRejected() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        compare(c.vm.saveNote({ id: "a", accountKey: "nope", type: "NOTE", title: "x", items: [], labels: [] }), "")
+        verify(!c.vm.removeNote({ id: "a", accountKey: "nope" }))
+    }
+
+    function test_viewOnlyFieldsAreNotPassedToTheProvider() {
+        var seen = null
+        var base = Fake.createSession(keepAcc, "s", { data: personalData() })
+        var spy = {
+            createState: base.createState, restoreState: base.restoreState, sync: base.sync,
+            notes: base.notes, labels: base.labels, pending: base.pending, remove: base.remove,
+            commit: function (state, snapshot) { seen = snapshot; return base.commit(state, snapshot) }
+        }
+        var c = make([{ account: keepAcc, provider: { id: "fake", name: "Fake", icon: "x", capabilities: Fake.capabilities }, session: spy }])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        var note = first(c.vm, "b")      // carries key, accountKey, providerId, label keys
+        c.vm.saveNote(note)
+        verify(seen !== null)
+        verify(!("key" in seen))
+        verify(!("accountKey" in seen))
+        verify(!("providerId" in seen))
+        compare(seen.labels[0].id, "L1")
+        verify(!("key" in seen.labels[0]))
     }
 }

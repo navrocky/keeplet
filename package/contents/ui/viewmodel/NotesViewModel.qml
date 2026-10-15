@@ -13,6 +13,8 @@ QtObject {
     required property var accounts
     property var cache: null
     property int syncInterval: 5 // minutes
+    // Pause after the last edit before queued edits are sent (ms); tests shorten it.
+    property int writeDelay: 1500
 
     // --- Output
     property var notes: []        // visible notes, pinned first (see Workspace.visibleNotes)
@@ -20,6 +22,8 @@ QtObject {
     property bool syncing: false  // any account is syncing
     property bool loaded: false   // there is something to show (cache or server)
     property var lastSync: null   // Date of the latest successful sync, or null
+    // Local edits not yet accepted by their servers (all accounts). They stay visible and survive restarts.
+    property int unsynced: 0
     // Per-account problems: [{accountKey, displayName, kind, detail}], kind is a ProviderError kind.
     property var errors: []
     // Convenience for single-account Views: the first problem, or "".
@@ -52,6 +56,12 @@ QtObject {
     property var _all: []
     readonly property var _sessions: accounts.sessions
 
+    property Timer _writeTimer: Timer {
+        interval: vm.writeDelay
+        repeat: false
+        onTriggered: vm._sendPending()
+    }
+
     property Timer _timer: Timer {
         interval: Math.max(1, vm.syncInterval) * 60 * 1000
         repeat: true
@@ -64,12 +74,73 @@ QtObject {
         Object.keys(_accs).forEach(function (key) { _refreshAccount(key) })
     }
 
+    // Whether notes of this account can be edited (provider capability).
+    function canWrite(accountKey) {
+        var a = _accs[accountKey]
+        return !!a && !!a.provider.capabilities.write && typeof a.session.commit === "function"
+    }
+
+    // Applies an edited note (or a new one: empty `id`, `accountKey` of the target account) at once and
+    // queues it for the server. Returns the note's key ("<accountKey>/<id>"), or "" if it can't be written.
+    function saveNote(note) {
+        if (!canWrite(note.accountKey))
+            return ""
+        var a = _accs[note.accountKey]
+        var saved = a.session.commit(a.state, _snapshot(note))
+        if (!saved)
+            return ""
+        _afterWrite(a)
+        return Workspace.noteKey(note.accountKey, saved.id)
+    }
+
+    // Deletes a note for good (use saveNote with `trashed` to move it to the trash).
+    function removeNote(note) {
+        if (!canWrite(note.accountKey))
+            return false
+        var a = _accs[note.accountKey]
+        a.session.remove(a.state, note.id)
+        _afterWrite(a)
+        return true
+    }
+
     function select(key) { selected = key }
     function selectAccount(accountKey) { accountFilter = accountKey }
     function openNote(noteKey) { currentNoteKey = noteKey }
     function closeNote() { currentNoteKey = "" }
 
     // --- Internals
+    // Only provider-neutral fields go to the provider; view-only fields (keys, account tags) are dropped.
+    function _snapshot(note) {
+        return {
+            id: note.id || "", type: note.type, title: note.title || "", text: note.text || "",
+            items: (note.items || []).map(function (i) {
+                return { id: i.id || "", text: i.text, checked: !!i.checked, indent: i.indent || 0 }
+            }),
+            color: note.color || "DEFAULT", pinned: !!note.pinned, archived: !!note.archived,
+            trashed: !!note.trashed,
+            labels: (note.labels || []).map(function (l) { return { id: l.id, name: l.name } })
+        }
+    }
+
+    function _afterWrite(a) {
+        if (cache)
+            cache.save(a.account.key, JSON.stringify(a.state))
+        _rebuild()
+        _updateStatus()
+        _writeTimer.restart()
+    }
+
+    function _pendingOf(a) {
+        return typeof a.session.pending === "function" ? a.session.pending(a.state) : 0
+    }
+
+    function _sendPending() {
+        Object.keys(_accs).forEach(function (key) {
+            if (_pendingOf(_accs[key]) > 0)
+                _refreshAccount(key)
+        })
+    }
+
     function _fail(e) {
         if (e && e.kind)
             return { kind: e.kind, detail: e.detail || "" }
@@ -96,6 +167,10 @@ QtObject {
             if (_accs[key] === a) { // the account may have been removed meanwhile
                 _rebuild()
                 _updateStatus()
+                // Edits made while this request was in flight are sent next, unless the server is unreachable
+                // (then the regular sync timer or a manual refresh retries).
+                if (!a.error && _pendingOf(a) > 0)
+                    _writeTimer.restart()
             }
         })
     }
@@ -106,14 +181,17 @@ QtObject {
         loaded = keys.some(function (k) { return _accs[k].loaded })
         var last = null
         var errs = []
+        var queued = 0
         keys.forEach(function (k) {
             var a = _accs[k]
+            queued += _pendingOf(a)
             if (a.lastSync && (!last || a.lastSync > last))
                 last = a.lastSync
             if (a.error)
                 errs.push({ accountKey: k, displayName: a.account.displayName, kind: a.error.kind, detail: a.error.detail })
         })
         lastSync = last
+        unsynced = queued
         errors = errs
     }
 
