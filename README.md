@@ -38,13 +38,13 @@ your browser and hand Keeplet a one-time token:
 2. Open developer tools (`F12`) → **Application** (Chrome) or **Storage** (Firefox) → **Cookies** →
    `https://accounts.google.com`.
 3. Copy the value of the **`oauth_token`** cookie (starts with `oauth2_4/`).
-4. Right-click Keeplet → *Configure Keeplet…* → enter your Google e-mail, paste the token, click **Sign in**.
+4. Click the Keeplet icon, enter your Google e-mail, paste the token and click **Sign In**.
 
 The token works once; Keeplet exchanges it for a long-lived key and stores it in KWallet
-(or in the widget settings if KWallet is disabled — the settings page shows which).
+(or in the widget config if KWallet is disabled — the popup shows which).
 Don't share that key: it gives full access to your Google account.
 
-To sign out, click **Sign out** in the settings. You can also revoke access in your
+To sign out, right-click the widget → **Sign Out**. You can also revoke access in your
 Google account → *Security* → *Your devices*.
 
 ## Use

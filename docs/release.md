@@ -3,9 +3,9 @@
 ## Versioning
 SemVer tags `vX.Y.Z`. `scripts/build.sh` stamps the version into `metadata.json` from `git describe`.
 
-## CI (GitHub Actions) — planned
-- `.github/workflows/ci.yml` — on push/PR: `scripts/build.sh`, upload `dist/*.plasmoid` as an artifact.
-- `.github/workflows/release.yml` — on `v*` tag: `scripts/build.sh`, create a GitHub Release
+## CI (GitHub Actions)
+- `.github/workflows/ci.yml` — on push to `main` and PRs: `scripts/build.sh`, uploads `dist/` as artifact `keeplet-plasmoid`.
+- `.github/workflows/release.yml` (planned) — on `v*` tag: `scripts/build.sh`, create a GitHub Release
   with `keeplet-X.Y.Z.plasmoid` and `SHA256SUMS`, then publish to KDE Store.
 
 Both call the same `scripts/build.sh`, so local and CI artifacts are built identically.

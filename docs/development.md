@@ -36,6 +36,8 @@ directory and opens it with `plasmawindowed`. Re-run after each QML change.
 - Logs: `QT_FORCE_STDERR_LOGGING=1` (set by `dev.sh`), or for plasmashell: `journalctl --user -f | grep -i keeplet`.
 - KWallet entries: KWalletManager → folder `Keeplet`.
 - Never log tokens; mask them (first 8 chars + length).
+- Offscreen smoke test (prints QML warnings/errors):
+  `scripts/install.sh package && QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen timeout 8 plasmawindowed io.github.navrocky.keeplet`
 
 ## Tests
 - Unit tests: `tests/tst_*.qml` (QtTest), run by `build.sh`, or locally:

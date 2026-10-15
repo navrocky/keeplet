@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # git describe needs tags and history for the version
+
+      - name: Build (tests, lint, package)
+        run: scripts/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keeplet-plasmoid
+          path: dist/
+          if-no-files-found: error
