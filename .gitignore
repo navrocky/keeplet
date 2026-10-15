@@ -1,0 +1,4 @@
+/dist/
+/target/
+*.plasmoid
+/package/contents/bin/

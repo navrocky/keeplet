@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "navrocky.vlad@gmail.com",
+                "Name": "Vladislav Navrocky"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "Google Keep notes on your desktop",
+        "Description[ru]": "Заметки Google Keep на рабочем столе",
+        "Icon": "knotes",
+        "Id": "io.github.navrocky.keeplet",
+        "License": "MIT",
+        "Name": "Keeplet",
+        "Version": "0.0.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
