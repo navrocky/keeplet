@@ -11,7 +11,7 @@ var name = "Google Keep"
 var icon = "knotes"
 
 var capabilities = {
-    labels: "multi", colors: true, checklists: true, nestedItems: true,
+    labels: "multi", colors: Nodes.COLORS, checklists: true, nestedItems: true,
     pinned: true, archive: true, trash: true, images: true,
     offlineEdit: false // flips to true with the write path (stage C)
 }

@@ -22,6 +22,7 @@ function validate(provider) {
     if (caps) {
         CAPABILITY_KEYS.forEach(function (k) { need(k in caps, "capabilities." + k + " is missing") })
         need(LABEL_MODES.indexOf(caps.labels) >= 0, "capabilities.labels must be one of " + LABEL_MODES.join("|"))
+        need(Array.isArray(caps.colors), "capabilities.colors must be an array of color names (empty = unsupported)")
     }
 
     var fields = provider.credentialFields

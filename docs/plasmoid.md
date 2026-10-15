@@ -11,7 +11,7 @@ package/
     │   ├── main.qml               PlasmoidItem: wires services and ViewModels, picks the View
     │   ├── viewmodel/             AccountsViewModel, NotesViewModel (QtObject, no visuals)
     │   ├── views/                 SignInView, NotesRoot (navigation), NotesScreen, LabelRail, NoteScreen,
-    │   │                          NoteCard, keepColors.js (layout + bindings)
+    │   │                          NoteCard, ColorPicker, keepColors.js (layout + bindings)
     │   ├── services/              LocalDb, SecretStore, AccountsService, NotesCache (platform APIs)
     │   └── configGeneral.qml      settings page
     └── config/                    main.xml (KConfigXT schema), config.qml (config pages)
@@ -34,8 +34,20 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   dependency from `onXxxChanged` of another property; use `Component.onCompleted`.
 - Don't name a property the same as the id you bind it to (`Foo { auth: auth }` is a binding loop).
 
+## Colors
+- Providers list the color names they support in `capabilities.colors` (empty = none; the first entry is
+  the "no color" default). Keep: `DEFAULT, RED, ORANGE, YELLOW, GREEN, TEAL, BLUE, CERULEAN, PURPLE, PINK, BROWN, GRAY`.
+- `views/keepColors.js` maps a name to a shade for the light (pastel) or dark (muted) palette and picks readable
+  text; `DEFAULT`/unknown names use the theme. `dark` comes from the theme background luminance
+  (`KeepColors.isDark(Kirigami.Theme.backgroundColor)`); `NoteCard`, `NoteScreen` and `ColorPicker` expose it as an
+  overridable `dark` property for previews and tests. `tests/tst_keepcolors.qml` enforces WCAG contrast >= 4.5.
+- `ColorPicker` only emits `picked(name)`; applying the color needs the write path (stage C/D).
+
 ## Gotchas
 - `console.log` goes to journald unless `QT_FORCE_STDERR_LOGGING=1` is set.
+- Offscreen preview harnesses (`QT_QPA_PLATFORM=offscreen qml6 harness.qml` + `grabToImage`) render no icons unless the
+  harness also loads the Plasma views (e.g. `NotesRoot`); a bare `Kirigami.Icon` stays empty there. Not a widget bug.
+- In a `Repeater` delegate, `required property modelData` must be declared on the delegate's root item.
 - Synchronous `file://` PUT via XHR truncates the file and writes nothing; use async (only relevant for tooling).
 - plasmashell caches QML of loaded widgets; restart it after reinstalling (see [development.md](development.md)).
 - `Plasma5Support` `executable` DataSource runs shell commands; avoid passing secrets through it (visible in `ps`).

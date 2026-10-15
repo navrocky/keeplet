@@ -12,15 +12,16 @@ Rectangle {
 
     signal clicked()
 
+    // Palette follows the theme; overridable for previews and tests.
+    property bool dark: KeepColors.isDark(Kirigami.Theme.backgroundColor)
     readonly property bool colored: KeepColors.has(note.color)
-    // Keep's pastel colors are light in both themes, so text on them must be dark.
-    readonly property color textColor: colored ? KeepColors.TEXT_ON_COLOR : Kirigami.Theme.textColor
+    readonly property color textColor: colored ? KeepColors.textOn(note.color, dark) : Kirigami.Theme.textColor
     readonly property int maxItems: 6
 
-    color: colored ? KeepColors.background(note.color) : Kirigami.Theme.alternateBackgroundColor
+    color: colored ? KeepColors.background(note.color, dark) : Kirigami.Theme.alternateBackgroundColor
     radius: Kirigami.Units.smallSpacing * 2
     border.width: 1
-    border.color: colored ? Qt.darker(color, 1.15) : Qt.alpha(Kirigami.Theme.textColor, 0.2)
+    border.color: colored ? (dark ? Qt.lighter(color, 1.4) : Qt.darker(color, 1.15)) : Qt.alpha(Kirigami.Theme.textColor, 0.2)
     implicitHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 2
 
     TapHandler {

@@ -21,10 +21,12 @@ Rectangle {
     }
     Component.onCompleted: note = vm.currentNote
 
+    // Palette follows the theme; overridable for previews and tests.
+    property bool dark: KeepColors.isDark(Kirigami.Theme.backgroundColor)
     readonly property bool colored: note !== null && KeepColors.has(note.color)
-    readonly property color textColor: colored ? KeepColors.TEXT_ON_COLOR : Kirigami.Theme.textColor
+    readonly property color textColor: colored ? KeepColors.textOn(note.color, dark) : Kirigami.Theme.textColor
 
-    color: colored ? KeepColors.background(note.color) : Kirigami.Theme.backgroundColor
+    color: colored ? KeepColors.background(note.color, dark) : Kirigami.Theme.backgroundColor
     Behavior on color { ColorAnimation { duration: Kirigami.Units.longDuration } }
 
     ColumnLayout {

@@ -57,6 +57,17 @@ TestCase {
         verify(Contract.validate(null).length > 0)
     }
 
+    function test_colorsCapabilityIsAListOfNames() {
+        verify(Array.isArray(Keep.capabilities.colors))
+        compare(Keep.capabilities.colors[0], "DEFAULT")
+        compare(Keep.capabilities.colors.length, 12)
+        verify(Contract.validate({ id: "x", name: "X", icon: "i", capabilities: {
+            labels: "none", colors: true, checklists: false, nestedItems: false, pinned: false, archive: false,
+            trash: false, images: false, offlineEdit: false
+        }, credentialFields: [{ key: "k", label: "L" }], signIn: function () {}, createSession: function () {} })
+            .some(function (p) { return p.indexOf("colors must be an array") >= 0 }))
+    }
+
     function test_registryListsKeep() {
         verify(Registry.get("keep") !== null)
         compare(Registry.get("keep").name, "Google Keep")
