@@ -141,4 +141,57 @@ TestCase {
         verify(!Nodes.isSet(undefined))
         verify(Nodes.isSet("2026-10-15T10:00:00.000000Z"))
     }
+
+    // --- pending local edits
+
+    function test_createStateHasEmptyQueue() {
+        var s = Nodes.createState()
+        compare(Object.keys(s.dirty).length, 0)
+        compare(s.rev, 0)
+        compare(Nodes.pendingCount(s), 0)
+    }
+
+    function test_normalizeStateUpgradesOldCaches() {
+        var old = { version: "v", nodes: {}, labels: {} }
+        Nodes.normalizeState(old)
+        compare(Object.keys(old.dirty).length, 0)
+        compare(old.rev, 0)
+    }
+
+    function test_markDirtyShowsEditAtOnceAndQueuesIt() {
+        var s = Nodes.createState()
+        Nodes.applyChanges(s, sampleResponse())
+        var edited = JSON.parse(JSON.stringify(s.nodes.n1))
+        edited.title = "Changed"
+        Nodes.markDirty(s, edited)
+        compare(Nodes.buildNotes(s)[0].title, "Changed")
+        compare(Nodes.pendingCount(s), 1)
+        compare(s.dirty.n1.rev, 1)
+        Nodes.markDirty(s, edited)
+        compare(s.dirty.n1.rev, 2)   // re-editing bumps the revision
+    }
+
+    function test_locallyDeletedNodesVanishFromNotes() {
+        var s = Nodes.createState()
+        Nodes.applyChanges(s, sampleResponse())
+        var gone = JSON.parse(JSON.stringify(s.nodes.n1))
+        gone.timestamps.deleted = now
+        Nodes.markDirty(s, gone)
+        verify(Nodes.buildNotes(s).every(function (n) { return n.id !== "n1" }))
+    }
+
+    function test_applyChangesSkipKeepsLocalVersion() {
+        var s = Nodes.createState()
+        Nodes.applyChanges(s, sampleResponse())
+        var edited = JSON.parse(JSON.stringify(s.nodes.n1))
+        edited.title = "Local"
+        Nodes.markDirty(s, edited)
+        var resp = sampleResponse()
+        resp.nodes[0].title = "Server"
+        resp.toVersion = "v2"
+        Nodes.applyChanges(s, resp, { skip: function (id) { return id === "n1" } })
+        compare(s.nodes.n1.title, "Local")
+        compare(s.version, "v2")
+        compare(s.nodes["n1.b"].text, "milk, eggs")   // other nodes are still applied
+    }
 }

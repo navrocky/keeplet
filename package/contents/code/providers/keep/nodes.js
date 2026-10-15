@@ -4,9 +4,12 @@
 // Port of the relevant parts of gkeepapi (https://github.com/kiwiz/gkeepapi, MIT). See docs/keep-protocol.md.
 //
 // State is plain data so it can be cached as JSON:
-//   { version: "<toVersion>", nodes: { <id>: <raw server node> }, labels: { <mainId>: <raw label> } }
+//   { version: "<toVersion>", nodes: { <id>: <raw server node> }, labels: { <mainId>: <raw label> },
+//     dirty: { <id>: {node, rev} }, rev: <counter> }
 // Raw server nodes are kept untouched so that changed nodes can be sent back with every
 // field the server gave us, including ones we don't understand.
+// `dirty` holds local edits not yet accepted by the server: the node to send and the revision at which
+// it was last edited. Edits survive restarts because the whole state is cached.
 
 var ROOT = "root"
 var NEVER_PREFIX = "1970-01-01"
@@ -15,7 +18,27 @@ var COLORS = ["DEFAULT", "RED", "ORANGE", "YELLOW", "GREEN", "TEAL", "BLUE",
               "CERULEAN", "PURPLE", "PINK", "BROWN", "GRAY"]
 
 function createState() {
-    return { version: "", nodes: {}, labels: {} }
+    return { version: "", nodes: {}, labels: {}, dirty: {}, rev: 0 }
+}
+
+// A cached state from an older layout (no `dirty`) is upgraded in place.
+function normalizeState(state) {
+    if (!state.dirty || typeof state.dirty !== "object")
+        state.dirty = {}
+    if (typeof state.rev !== "number")
+        state.rev = 0
+    return state
+}
+
+// Records a locally changed raw node: visible immediately, queued for the next sync.
+function markDirty(state, raw) {
+    state.nodes[raw.id] = raw
+    state.rev += 1
+    state.dirty[raw.id] = { node: raw, rev: state.rev }
+}
+
+function pendingCount(state) {
+    return Object.keys(state.dirty || {}).length
 }
 
 // Timestamps that were never set are serialized as the Unix epoch.
@@ -28,8 +51,13 @@ function isDeleted(raw) {
 }
 
 // Merges a /changes response into state (mutates it). Deleted nodes and labels are dropped.
-function applyChanges(state, response) {
+// options.skip(id) -> true keeps the local version of that node (an edit made while the request
+// was in flight must not be overwritten by the older server copy).
+function applyChanges(state, response, options) {
+    var skip = options && options.skip
     ;(response.nodes || []).forEach(function (raw) {
+        if (skip && skip(raw.id))
+            return
         if (isDeleted(raw))
             delete state.nodes[raw.id]
         else
@@ -62,7 +90,8 @@ function _childrenIndex(state) {
     Object.keys(state.nodes).forEach(function (id) {
         var raw = state.nodes[id]
         var parent = raw.parentId
-        if (!parent)
+        // Locally deleted nodes disappear at once, before the server confirms.
+        if (!parent || isDeleted(raw))
             return
         ;(index[parent] = index[parent] || []).push(raw)
     })
