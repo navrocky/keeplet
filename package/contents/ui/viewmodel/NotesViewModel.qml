@@ -74,6 +74,21 @@ QtObject {
         Object.keys(_accs).forEach(function (key) { _refreshAccount(key) })
     }
 
+    // A note by key ("<accountKey>/<id>") regardless of the selected group, or null. Includes pending local edits.
+    function noteByKey(noteKey) {
+        for (var i = 0; i < _all.length; i++) {
+            if (_all[i].key === noteKey)
+                return _all[i]
+        }
+        return null
+    }
+
+    // The provider capabilities of an account, or null.
+    function capabilities(accountKey) {
+        var a = _accs[accountKey]
+        return a ? a.provider.capabilities : null
+    }
+
     // Whether notes of this account can be edited (provider capability).
     function canWrite(accountKey) {
         var a = _accs[accountKey]

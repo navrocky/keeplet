@@ -464,4 +464,20 @@ TestCase {
         compare(seen.labels[0].id, "L1")
         verify(!("key" in seen.labels[0]))
     }
+
+    function test_noteByKeyFindsNotesOutsideTheSelectedGroup() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.select("trash")
+        verify(c.vm.noteByKey("fake:me@x/a") !== null)      // not in the trash group, still found
+        verify(c.vm.noteByKey("fake:me@x/nope") === null)
+        verify(c.vm.noteByKey("other/a") === null)
+    }
+
+    function test_capabilitiesOfAnAccount() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        compare(c.vm.capabilities("fake:me@x").labels, "multi")
+        verify(c.vm.capabilities("nope") === null)
+    }
 }
