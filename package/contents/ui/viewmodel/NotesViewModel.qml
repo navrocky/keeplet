@@ -26,11 +26,26 @@ QtObject {
     readonly property string error: errors.length > 0 ? errors[0].kind : ""
     readonly property string errorDetail: errors.length > 0 ? errors[0].detail : ""
 
-    // --- Input (filters set by the View)
+    // Navigation items for the label rail, built here so the View only renders them:
+    //   {type: "header", accountKey, name, icon}
+    //   {type: "group", key, kind: "all"|"unlabeled"|"label"|"archive"|"trash", name (labels only),
+    //    icon, count, accountKey, droppable}
+    // Built-in group names are user-facing text, so the View derives them from `kind`.
+    property var rail: []
+    property bool railVisible: false
+    // Account switcher: [{key: "" for all, name, icon}] (the View shows it when there are several accounts).
+    property var accountTabs: []
+
+    // --- Input (set by the View)
     property string searchText: ""
-    property string labelKey: ""      // "<accountKey>|<labelId>" or ""
-    property string accountFilter: "" // accountKey or "" for all
-    property string view: "notes"     // "notes" | "archive" | "trash"
+    // Selected group: "all" | "unlabeled" | "label:<accountKey>|<labelId>" | "archive" | "trash"
+    property string selected: "all"
+    property string accountFilter: "" // accountKey or "" for all accounts
+    property bool railCollapsed: false
+
+    // --- Navigation
+    property string currentNoteKey: ""  // "<accountKey>/<noteId>" of the open note, or ""
+    property var currentNote: null      // the open note (kept fresh on every sync), or null
 
     // --- Private
     property var _accs: ({})          // accountKey -> {account, provider, session, state, syncing, lastSync, error}
@@ -48,6 +63,11 @@ QtObject {
     function refresh() {
         Object.keys(_accs).forEach(function (key) { _refreshAccount(key) })
     }
+
+    function select(key) { selected = key }
+    function selectAccount(accountKey) { accountFilter = accountKey }
+    function openNote(noteKey) { currentNoteKey = noteKey }
+    function closeNote() { currentNoteKey = "" }
 
     // --- Internals
     function _fail(e) {
@@ -108,11 +128,118 @@ QtObject {
         _applyFilter()
     }
 
+    function _selection(key) {
+        if (key === "unlabeled")
+            return { view: "notes", unlabeled: true }
+        if (key === "archive")
+            return { view: "archive" }
+        if (key === "trash")
+            return { view: "trash" }
+        if (key.indexOf("label:") === 0)
+            return { view: "notes", labelKey: key.substring("label:".length) }
+        return { view: "notes" }
+    }
+
+    function _count(extra) {
+        var opts = { accountFilter: accountFilter, accountCount: Object.keys(_accs).length, view: "notes" }
+        for (var k in extra)
+            opts[k] = extra[k]
+        return Workspace.visibleNotes(_all, opts).length
+    }
+
+    function _buildRail() {
+        var keys = Object.keys(_accs)
+        var scope = keys.filter(function (k) { return !accountFilter || k === accountFilter })
+                        .map(function (k) { return _accs[k] })
+        var multi = keys.length > 1
+        var items = []
+
+        function anyCap(fn) { return scope.some(function (a) { return fn(a.provider.capabilities) }) }
+        var hasLabels = anyCap(function (c) { return c.labels !== "none" })
+        var hasArchive = anyCap(function (c) { return c.archive })
+        var hasTrash = anyCap(function (c) { return c.trash })
+
+        items.push({ type: "group", key: "all", kind: "all", icon: "knotes", accountKey: "",
+                     count: _count({}), droppable: false })
+        if (hasLabels) {
+            items.push({ type: "group", key: "unlabeled", kind: "unlabeled", icon: "tag-delete", accountKey: "",
+                         count: _count({ unlabeled: true }), droppable: true })
+            var inScope = labels.filter(function (l) { return !accountFilter || l.accountKey === accountFilter })
+            var byName = function (a, b) { return a.name.localeCompare(b.name) }
+            function labelItem(l) {
+                return { type: "group", key: "label:" + l.key, kind: "label", name: l.name, icon: "tag",
+                         accountKey: l.accountKey, count: _count({ labelKey: l.key }), droppable: true }
+            }
+            if (multi && !accountFilter) {
+                scope.forEach(function (a) {
+                    var own = inScope.filter(function (l) { return l.accountKey === a.account.key }).sort(byName)
+                    if (own.length === 0)
+                        return
+                    items.push({ type: "header", accountKey: a.account.key, name: a.account.displayName,
+                                 icon: a.provider.icon })
+                    own.forEach(function (l) { items.push(labelItem(l)) })
+                })
+            } else {
+                inScope.slice().sort(byName).forEach(function (l) { items.push(labelItem(l)) })
+            }
+        }
+        if (hasArchive)
+            items.push({ type: "group", key: "archive", kind: "archive", icon: "archive-insert", accountKey: "",
+                         count: _count({ view: "archive" }), droppable: false })
+        if (hasTrash)
+            items.push({ type: "group", key: "trash", kind: "trash", icon: "user-trash", accountKey: "",
+                         count: _count({ view: "trash" }), droppable: false })
+
+        rail = items
+        railVisible = items.length > 1
+        accountTabs = [{ key: "", name: "", icon: "knotes" }].concat(keys.map(function (k) {
+            return { key: k, name: _accs[k].account.displayName, icon: _accs[k].provider.icon }
+        }))
+    }
+
+    // A selection that no longer exists (label or account removed) falls back to everything.
+    function _validateSelection() {
+        if (accountFilter && !_accs[accountFilter])
+            accountFilter = ""
+        if (selected.indexOf("label:") === 0) {
+            var key = selected.substring("label:".length)
+            var exists = labels.some(function (l) {
+                return l.key === key && (!accountFilter || l.accountKey === accountFilter)
+            })
+            if (!exists)
+                selected = "all"
+        }
+    }
+
+    function _syncCurrentNote() {
+        if (!currentNoteKey) {
+            currentNote = null
+            return
+        }
+        var found = null
+        for (var i = 0; i < _all.length; i++) {
+            if (_all[i].key === currentNoteKey) {
+                found = _all[i]
+                break
+            }
+        }
+        if (found) {
+            currentNote = found
+        } else {
+            currentNote = null
+            currentNoteKey = "" // the note vanished (deleted elsewhere)
+        }
+    }
+
     function _applyFilter() {
-        notes = Workspace.visibleNotes(_all, {
-            accountFilter: accountFilter, view: view, labelKey: labelKey,
-            query: searchText, accountCount: Object.keys(_accs).length
-        })
+        _validateSelection()
+        var sel = _selection(selected)
+        var opts = { accountFilter: accountFilter, query: searchText, accountCount: Object.keys(_accs).length }
+        for (var k in sel)
+            opts[k] = sel[k]
+        notes = Workspace.visibleNotes(_all, opts)
+        _buildRail()
+        _syncCurrentNote()
     }
 
     // Adopts the session list: new accounts start from their cache and sync, removed ones are dropped.
@@ -157,9 +284,9 @@ QtObject {
 
     on_SessionsChanged: _adoptSessions()
     onSearchTextChanged: _applyFilter()
-    onLabelKeyChanged: _applyFilter()
+    onSelectedChanged: _applyFilter()
     onAccountFilterChanged: _applyFilter()
-    onViewChanged: _applyFilter()
+    onCurrentNoteKeyChanged: _syncCurrentNote()
 
     Component.onCompleted: _adoptSessions()
 }

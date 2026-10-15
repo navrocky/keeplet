@@ -53,7 +53,11 @@ TestCase {
 
     // opts: {data, fail} per account, like providers/fake.js createSession options.
     function entry(account, opts) {
-        return { account: account, provider: Fake, session: Fake.createSession(account, "s", opts) }
+        return {
+            account: account,
+            provider: { id: Fake.id, name: Fake.name, icon: Fake.icon, capabilities: Fake.capabilities },
+            session: Fake.createSession(account, "s", opts)
+        }
     }
 
     function make(entries, withCache) {
@@ -80,11 +84,11 @@ TestCase {
     function test_viewSwitchesBetweenNotesArchiveTrash() {
         var c = make([entry(keepAcc, { data: personalData() })])
         tryVerify(function () { return c.vm.loaded })
-        c.vm.view = "archive"
+        c.vm.select("archive")
         compare(ids(c.vm), "c")
-        c.vm.view = "trash"
+        c.vm.select("trash")
         compare(ids(c.vm), "d")
-        c.vm.view = "notes"
+        c.vm.select("all")
         compare(ids(c.vm), "b,a")
     }
 
@@ -104,7 +108,7 @@ TestCase {
     function test_labelFilter() {
         var c = make([entry(keepAcc, { data: personalData() })])
         tryVerify(function () { return c.vm.loaded })
-        c.vm.labelKey = "fake:me@x|L1"
+        c.vm.select("label:fake:me@x|L1")
         compare(ids(c.vm), "b")
     }
 
@@ -193,9 +197,9 @@ TestCase {
         var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
         tryVerify(function () { return c.vm.notes.length === 3 })
         compare(c.vm.labels.length, 2)
-        c.vm.labelKey = "fake:work|L1"
+        c.vm.select("label:fake:work|L1")
         compare(ids(c.vm), "w1")
-        c.vm.labelKey = "fake:me@x|L1"
+        c.vm.select("label:fake:me@x|L1")
         compare(ids(c.vm), "b")
     }
 
@@ -218,5 +222,115 @@ TestCase {
         c.accounts.sessions = [existing, entry(workAcc, { data: workData() })]
         tryVerify(function () { return c.vm.notes.length === 3 })
         compare(c.cache.removed.length, 0)
+    }
+
+    // --- groups, rail and navigation (stage A)
+
+    function railKeys(vm) {
+        return vm.rail.map(function (i) { return i.type === "header" ? "#" + i.accountKey : i.key }).join()
+    }
+    function groupCount(vm, key) {
+        var g = vm.rail.filter(function (i) { return i.key === key })[0]
+        return g ? g.count : -1
+    }
+
+    function test_unlabeledGroupShowsNotesWithoutLabels() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.select("unlabeled")
+        compare(ids(c.vm), "a")   // b has a label, c is archived, d is trashed
+        c.vm.select("all")
+        compare(ids(c.vm), "b,a")  // "all" stays the full, first group
+    }
+
+    function test_railSingleAccountIsFlat() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        compare(railKeys(c.vm), "all,unlabeled,label:fake:me@x|L1,archive,trash")
+        verify(c.vm.railVisible)
+        compare(groupCount(c.vm, "all"), 2)
+        compare(groupCount(c.vm, "unlabeled"), 1)
+        compare(groupCount(c.vm, "label:fake:me@x|L1"), 1)
+        compare(groupCount(c.vm, "archive"), 1)
+        compare(groupCount(c.vm, "trash"), 1)
+        compare(c.vm.rail[0].kind, "all")
+        compare(c.vm.rail[2].name, "Work")
+        verify(c.vm.rail[1].droppable && c.vm.rail[2].droppable && !c.vm.rail[0].droppable)
+    }
+
+    function test_railMultiAccountGroupsLabelsUnderAccountHeaders() {
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        compare(railKeys(c.vm), "all,unlabeled,#fake:me@x,label:fake:me@x|L1,#fake:work,label:fake:work|L1,archive,trash")
+        compare(c.vm.rail[2].name, "me@x")
+        // Counts follow the account scope.
+        c.vm.selectAccount("fake:work")
+        compare(railKeys(c.vm), "all,unlabeled,label:fake:work|L1,archive,trash")
+        compare(groupCount(c.vm, "all"), 1)
+        c.vm.selectAccount("")
+        compare(groupCount(c.vm, "all"), 3)
+    }
+
+    function test_accountTabsListAllPlusAccounts() {
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        compare(c.vm.accountTabs.map(function (t) { return t.key }).join(), ",fake:me@x,fake:work")
+        compare(c.vm.accountTabs[2].name, "work")
+    }
+
+    function test_selectionFallsBackWhenLabelDisappears() {
+        var opts = { data: personalData() }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        c.vm.select("label:fake:me@x|L1")
+        compare(ids(c.vm), "b")
+        opts.data.labels = []
+        opts.data.notes[1].labels = []
+        c.vm.refresh()
+        tryVerify(function () { return c.vm.selected === "all" })
+        compare(ids(c.vm), "b,a")
+    }
+
+    function test_railHiddenWhenProviderHasNothingToGroup() {
+        // Only "all" would remain: no labels, no archive, no trash.
+        var bare = { account: keepAcc, provider: {
+            capabilities: { labels: "none", archive: false, trash: false },
+            icon: "x"
+        }, session: Fake.createSession(keepAcc, "s", { data: { notes: [note("z")], labels: [] } }) }
+        var c = make([bare])
+        tryVerify(function () { return c.vm.loaded })
+        verify(!c.vm.railVisible)
+        compare(c.vm.rail.length, 1)
+    }
+
+    function test_openNoteTracksTheNoteAndClosesWhenItDisappears() {
+        var opts = { data: personalData() }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        c.vm.openNote("fake:me@x/a")
+        compare(c.vm.currentNote.title, "Alpha")
+        // Fresh data replaces the open note.
+        opts.data.notes[0].title = "Alpha 2"
+        c.vm.refresh()
+        tryVerify(function () { return c.vm.currentNote && c.vm.currentNote.title === "Alpha 2" })
+        // Opening works regardless of the selected group or search.
+        c.vm.searchText = "nomatch"
+        compare(c.vm.currentNote.title, "Alpha 2")
+        c.vm.searchText = ""
+        // The note vanished on the server.
+        opts.data.notes.splice(0, 1)
+        c.vm.refresh()
+        tryVerify(function () { return c.vm.currentNoteKey === "" })
+        verify(c.vm.currentNote === null)
+    }
+
+    function test_closeNote() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.openNote("fake:me@x/b")
+        verify(c.vm.currentNote !== null)
+        c.vm.closeNote()
+        compare(c.vm.currentNoteKey, "")
+        verify(c.vm.currentNote === null)
     }
 }

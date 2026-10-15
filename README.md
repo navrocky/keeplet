@@ -53,11 +53,13 @@ Google account → *Security* → *Your devices*.
 
 ## Use
 - Click the widget to open your notes. Pinned notes are on top.
-- **New note / New list** buttons at the top.
-- Click a note to edit it; changes save automatically.
-- Note menu: pin, color, labels, archive, delete.
-- Search box filters by text; the label selector filters by label.
-- Archived and deleted notes are under the view selector.
+- The left rail lists groups: **All notes**, **No label** (notes you have not sorted yet), your labels,
+  **Archive** and **Trash**. Click one to show only its notes; the button next to the search box
+  collapses the rail to icons. With several accounts a switcher above the groups shows one account or all.
+- Click a note to open it full width; the arrow in the corner takes you back to the list.
+- The search box filters the notes of the selected group.
+
+_Editing, creating notes, choosing colors and drag-and-drop into groups are in progress._
 
 ## Uninstall
 Right-click the widget → *Remove*, then:

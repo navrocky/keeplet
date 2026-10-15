@@ -11,6 +11,10 @@
       <min>1</min>
       <max>120</max>
     </entry>
+    <entry name="railCollapsed" type="Bool">
+      <label>Show only icons in the group rail</label>
+      <default>false</default>
+    </entry>
   </group>
 
   <group name="Accounts">

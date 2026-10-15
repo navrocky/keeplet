@@ -20,7 +20,7 @@ QtObject {
 
     // [{key, providerId, providerName, icon, displayName, capabilities, needsSignIn}]
     property var accounts: []
-    // [{account, provider, session}] for accounts whose secret is available.
+    // [{account, provider: {id, name, icon, capabilities}, session}] for accounts whose secret is available.
     property var sessions: []
     readonly property bool signedIn: accounts.length > 0
     readonly property bool multiAccount: accounts.length > 1
@@ -30,6 +30,8 @@ QtObject {
                  signInHelpUrl: p.signInHelpUrl || "" }
     })
 
+    // False until the first load of the stored accounts has finished (avoids flashing the sign-in form).
+    property bool ready: false
     property bool busy: false
     property bool signInRequested: false   // show the sign-in form even though accounts exist
     // "" | "network" | "badCredentials" | "failed" ; details for "failed" in errorDetail
@@ -72,12 +74,18 @@ QtObject {
                 })
                 if (ready) {
                     var opts = sessionOptions ? sessionOptions(it.account) : undefined
-                    sess.push({ account: it.account, provider: p,
-                                session: p.createSession(it.account, it.secret, opts) })
+                    // Plain data only: a provider module object loses its members once stored in a
+                    // `property var`, so sessions carry a copy of what the ViewModels need.
+                    sess.push({
+                        account: it.account,
+                        provider: { id: p.id, name: p.name, icon: p.icon, capabilities: p.capabilities },
+                        session: p.createSession(it.account, it.secret, opts)
+                    })
                 }
             })
             accounts = accs
             sessions = sess
+            ready = true
         })
     }
 

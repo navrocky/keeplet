@@ -10,7 +10,8 @@ package/
     ├── ui/
     │   ├── main.qml               PlasmoidItem: wires services and ViewModels, picks the View
     │   ├── viewmodel/             AccountsViewModel, NotesViewModel (QtObject, no visuals)
-    │   ├── views/                 SignInView, NotesView, NoteCard (layout + bindings)
+    │   ├── views/                 SignInView, NotesRoot (navigation), NotesScreen, LabelRail, NoteScreen,
+    │   │                          NoteCard, keepColors.js (layout + bindings)
     │   ├── services/              LocalDb, SecretStore, AccountsService, NotesCache (platform APIs)
     │   └── configGeneral.qml      settings page
     └── config/                    main.xml (KConfigXT schema), config.qml (config pages)

@@ -25,6 +25,11 @@ Google's Terms of Service.
 - ViewModels never import visual types and never produce user-facing text (errors are codes).
 - Model code is pure JS (`.pragma library`) and is unit-tested in `tests/`.
 - Providers are pluggable ([providers.md](providers.md)); Google Keep is one of them.
+- Navigation state (selected group, account filter, open note, collapsed rail) lives in `NotesViewModel`;
+  `NotesRoot` only follows `currentNoteKey` with a `StackView` and animated transitions.
+- The rail is built in the ViewModel (`rail`, `accountTabs`): groups are "All notes" (always first),
+  "No label" (notes without labels), labels (under per-account headers when several accounts are shown),
+  Archive, Trash. With one account the rail is flat and the account switcher is not shown.
 No native code: stage 0 showed that both `/auth` and `/changes` work from QML XHR
 ([decisions/0001-auth-helper.md](decisions/0001-auth-helper.md)).
 

@@ -72,6 +72,12 @@ TestCase {
         compare(ids(WS.visibleNotes(all, { labelKey: "fake:b|L1", accountCount: 2 })), "o1")
     }
 
+    function test_unlabeledOnlyActiveNotesWithoutLabels() {
+        var all = WS.merge(parts()).notes
+        // k1 and o1 have labels; k3 is archived, k4 trashed.
+        compare(ids(WS.visibleNotes(all, { unlabeled: true, accountCount: 2 })).split(",").sort().join(), "k2,o2")
+    }
+
     function test_searchMatchesTitleBodyItemsAndLabelName() {
         var all = WS.merge(parts()).notes
         compare(ids(WS.visibleNotes(all, { query: "OMEGA", accountCount: 2 })), "o1")

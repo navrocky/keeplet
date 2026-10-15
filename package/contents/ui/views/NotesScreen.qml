@@ -26,6 +26,14 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
 
+        PlasmaComponents.ToolButton {
+            visible: view.vm.railVisible
+            icon.name: view.vm.railCollapsed ? "sidebar-expand" : "sidebar-collapse"
+            onClicked: view.vm.railCollapsed = !view.vm.railCollapsed
+            PlasmaComponents.ToolTip.text: view.vm.railCollapsed ? i18n("Show group names") : i18n("Collapse groups")
+            PlasmaComponents.ToolTip.visible: hovered
+        }
+
         PlasmaComponents.TextField {
             Layout.fillWidth: true
             placeholderText: i18n("Search notes")
@@ -95,32 +103,46 @@ ColumnLayout {
         }
     }
 
-    PlasmaComponents.ScrollView {
+    RowLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
+        spacing: Kirigami.Units.smallSpacing
 
-        ListView {
-            id: list
-            model: view.vm.notes
-            spacing: Kirigami.Units.smallSpacing
-            clip: true
+        LabelRail {
+            Layout.fillHeight: true
+            visible: view.vm.railVisible
+            vm: view.vm
+            multiAccount: view.accountsVm.multiAccount
+        }
 
-            delegate: NoteCard {
-                required property var modelData
-                width: list.width
-                note: modelData
-            }
+        PlasmaComponents.ScrollView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-            PlasmaComponents.Label {
-                anchors.centerIn: parent
-                width: parent.width - Kirigami.Units.gridUnit * 2
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-                opacity: 0.7
-                visible: list.count === 0 && !view.vm.syncing
-                text: !view.vm.loaded ? i18n("Nothing here yet.")
-                      : view.vm.searchText !== "" ? i18n("No notes match your search.")
-                      : i18n("No notes.")
+            ListView {
+                id: list
+                model: view.vm.notes
+                spacing: Kirigami.Units.smallSpacing
+                clip: true
+
+                delegate: NoteCard {
+                    required property var modelData
+                    width: list.width
+                    note: modelData
+                    onClicked: view.vm.openNote(modelData.key)
+                }
+
+                PlasmaComponents.Label {
+                    anchors.centerIn: parent
+                    width: parent.width - Kirigami.Units.gridUnit * 2
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    opacity: 0.7
+                    visible: list.count === 0 && !view.vm.syncing
+                    text: !view.vm.loaded ? i18n("Nothing here yet.")
+                          : view.vm.searchText !== "" ? i18n("No notes match your search.")
+                          : i18n("No notes.")
+                }
             }
         }
     }

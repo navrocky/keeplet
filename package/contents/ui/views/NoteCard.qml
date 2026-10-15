@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
+import "keepColors.js" as KeepColors
 
 // One note in the list. Pure presentation: `note` is a plain object from NotesViewModel.
 Rectangle {
@@ -9,21 +10,23 @@ Rectangle {
 
     required property var note
 
-    readonly property var keepColors: ({
-        RED: "#f28b82", ORANGE: "#fbbc04", YELLOW: "#fff475", GREEN: "#ccff90",
-        TEAL: "#a7ffeb", BLUE: "#cbf0f8", CERULEAN: "#aecbfa", PURPLE: "#d7aefb",
-        PINK: "#fdcfe8", BROWN: "#e6c9a8", GRAY: "#e8eaed"
-    })
-    readonly property bool colored: note.color in keepColors
+    signal clicked()
+
+    readonly property bool colored: KeepColors.has(note.color)
     // Keep's pastel colors are light in both themes, so text on them must be dark.
-    readonly property color textColor: colored ? "#202124" : Kirigami.Theme.textColor
+    readonly property color textColor: colored ? KeepColors.TEXT_ON_COLOR : Kirigami.Theme.textColor
     readonly property int maxItems: 6
 
-    color: colored ? keepColors[note.color] : Kirigami.Theme.alternateBackgroundColor
+    color: colored ? KeepColors.background(note.color) : Kirigami.Theme.alternateBackgroundColor
     radius: Kirigami.Units.smallSpacing * 2
     border.width: 1
     border.color: colored ? Qt.darker(color, 1.15) : Qt.alpha(Kirigami.Theme.textColor, 0.2)
     implicitHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 2
+
+    TapHandler {
+        onTapped: card.clicked()
+        cursorShape: Qt.PointingHandCursor
+    }
 
     ColumnLayout {
         id: content

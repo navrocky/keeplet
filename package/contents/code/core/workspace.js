@@ -53,7 +53,8 @@ function _matches(note, query) {
 function _byOrder(a, b) { return b.order - a.order }
 function _byUpdated(a, b) { return a.updated < b.updated ? 1 : (a.updated > b.updated ? -1 : 0) }
 
-// opts: {accountFilter: "" | accountKey, view: "notes"|"archive"|"trash", labelKey: "", query: "", accountCount: n}
+// opts: {accountFilter: "" | accountKey, view: "notes"|"archive"|"trash", labelKey: "", unlabeled: bool,
+//        query: "", accountCount: n}
 // Order: pinned first; within an account provider's own order, across accounts most recently updated first.
 function visibleNotes(all, opts) {
     var query = (opts.query || "").trim().toLowerCase()
@@ -68,6 +69,8 @@ function visibleNotes(all, opts) {
             return false
         }
         if (opts.labelKey && !n.labels.some(function (l) { return l.key === opts.labelKey }))
+            return false
+        if (opts.unlabeled && n.labels.length > 0)
             return false
         return !query || _matches(n, query)
     })
