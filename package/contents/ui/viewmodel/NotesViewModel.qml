@@ -48,10 +48,21 @@ QtObject {
     property bool railCollapsed: false
 
     // --- Navigation
-    property string currentNoteKey: ""  // "<accountKey>/<noteId>" of the open note, or ""
+    // Key of the note being created before it has an id (see openNewNote).
+    readonly property string draftKey: "<new>"
+    property string currentNoteKey: ""  // "<accountKey>/<noteId>" of the open note, or draftKey, or ""
     property var currentNote: null      // the open note (kept fresh on every sync), or null
 
+    // The last undoable action, for a short "Undo" notice in the View:
+    //   {kind: "trashed"|"archived"|"unarchived"|"labeled"|"unlabeled", noteKey, label (name, for labeled)}
+    property var lastAction: null
+    // Account that received the last new note; the default target for the next one.
+    property string lastAccountKey: ""
+
     // --- Private
+    property var draft: null          // a new note that has no id yet
+    property string _draftTarget: ""  // key the draft got once it was saved
+    property var _undo: null          // snapshot to restore for lastAction
     property var _accs: ({})          // accountKey -> {account, provider, session, state, syncing, lastSync, error}
     property var _all: []
     readonly property var _sessions: accounts.sessions
@@ -76,6 +87,8 @@ QtObject {
 
     // A note by key ("<accountKey>/<id>") regardless of the selected group, or null. Includes pending local edits.
     function noteByKey(noteKey) {
+        if (noteKey === draftKey)
+            return _draftTarget ? noteByKey(_draftTarget) : draft
         for (var i = 0; i < _all.length; i++) {
             if (_all[i].key === noteKey)
                 return _all[i]
@@ -104,8 +117,14 @@ QtObject {
         var saved = a.session.commit(a.state, _snapshot(note))
         if (!saved)
             return ""
+        var key = Workspace.noteKey(note.accountKey, saved.id)
+        lastAccountKey = note.accountKey
+        // The open draft becomes this note; the editor keeps its history. Set before the rebuild so
+        // currentNote follows the stored note at once.
+        if (!note.id && currentNoteKey === draftKey)
+            _draftTarget = key
         _afterWrite(a)
-        return Workspace.noteKey(note.accountKey, saved.id)
+        return key
     }
 
     // Deletes a note for good (use saveNote with `trashed` to move it to the trash).
@@ -120,8 +139,192 @@ QtObject {
 
     function select(key) { selected = key }
     function selectAccount(accountKey) { accountFilter = accountKey }
-    function openNote(noteKey) { currentNoteKey = noteKey }
-    function closeNote() { currentNoteKey = "" }
+    function openNote(noteKey) {
+        if (noteKey !== draftKey) {
+            draft = null
+            _draftTarget = ""
+        }
+        currentNoteKey = noteKey
+    }
+    function closeNote() {
+        currentNoteKey = ""
+        draft = null
+        _draftTarget = ""
+    }
+
+    // Accounts a note can be created in: [{key, name, icon}].
+    function writableAccounts() {
+        return Object.keys(_accs).filter(function (k) { return canWrite(k) }).map(function (k) {
+            return { key: k, name: _accs[k].account.displayName, icon: _accs[k].provider.icon }
+        })
+    }
+
+    // Labels of one account: [{id, name, key, accountKey}].
+    function labelsOf(accountKey) {
+        return labels.filter(function (l) { return l.accountKey === accountKey })
+    }
+
+    function _newNoteAccount() {
+        var writable = writableAccounts().map(function (a) { return a.key })
+        if (writable.length === 0)
+            return ""
+        if (accountFilter && writable.indexOf(accountFilter) >= 0)
+            return accountFilter
+        if (selected.indexOf("label:") === 0) {
+            var key = selected.substring("label:".length)
+            for (var i = 0; i < labels.length; i++) {
+                if (labels[i].key === key && writable.indexOf(labels[i].accountKey) >= 0)
+                    return labels[i].accountKey
+            }
+        }
+        if (lastAccountKey && writable.indexOf(lastAccountKey) >= 0)
+            return lastAccountKey
+        return writable.sort()[0]
+    }
+
+    // Opens an empty note (type "NOTE" or "LIST") in the editor. It is created on the first change, so closing it
+    // untouched leaves nothing behind. The account is the one in view, else the one that got the last note.
+    // A new note inside a label group gets that label. Returns false if no account can be written.
+    function openNewNote(type) {
+        var accountKey = _newNoteAccount()
+        if (!accountKey)
+            return false
+        var preset = []
+        if (selected.indexOf("label:") === 0) {
+            var key = selected.substring("label:".length)
+            labelsOf(accountKey).forEach(function (l) {
+                if (l.key === key)
+                    preset.push({ id: l.id, name: l.name, key: l.key, accountKey: l.accountKey })
+            })
+        }
+        var list = type === "LIST"
+        draft = {
+            id: "", key: "", accountKey: accountKey, providerId: _accs[accountKey].provider.id,
+            type: list ? "LIST" : "NOTE", title: "", text: "",
+            items: list ? [{ id: "", text: "", checked: false, indent: 0 }] : [],
+            images: [], color: "DEFAULT", pinned: false, archived: selected === "archive", trashed: false,
+            labels: preset, order: 0, created: "", updated: ""
+        }
+        _draftTarget = ""
+        currentNoteKey = ""      // so that opening a second draft is a change the View and editor see
+        currentNoteKey = draftKey
+        return true
+    }
+
+    // Applies `changes` (any note fields: pinned, archived, trashed, color, labels...) to a note by key.
+    function updateNote(noteKey, changes) {
+        var note = noteByKey(noteKey)
+        if (!note)
+            return false
+        var next = {}
+        for (var k in note)
+            next[k] = note[k]
+        for (var c in changes)
+            next[c] = changes[c]
+        return saveNote(next) !== ""
+    }
+
+    function _remember(kind, note, label) {
+        _undo = _snapshotOf(note)
+        lastAction = { kind: kind, noteKey: note.key, label: label || "" }
+    }
+
+    function _snapshotOf(note) {
+        var s = _snapshot(note)
+        s.accountKey = note.accountKey
+        return s
+    }
+
+    // Undoable shortcuts used by the list and its context menu.
+    function trashNote(noteKey) {
+        var note = noteByKey(noteKey)
+        if (!note || !canWrite(note.accountKey))
+            return false
+        _remember("trashed", note)
+        return updateNote(noteKey, { trashed: true })
+    }
+    function restoreNote(noteKey) { return updateNote(noteKey, { trashed: false }) }
+    function archiveNote(noteKey, archived) {
+        var note = noteByKey(noteKey)
+        if (!note || !canWrite(note.accountKey))
+            return false
+        _remember(archived ? "archived" : "unarchived", note)
+        return updateNote(noteKey, { archived: !!archived })
+    }
+    function setPinned(noteKey, pinned) { return updateNote(noteKey, { pinned: !!pinned }) }
+    function setColor(noteKey, color) { return updateNote(noteKey, { color: color }) }
+
+    // Deletes a note for good, or every note in the trash of the accounts in view.
+    function deleteForever(noteKey) {
+        var note = noteByKey(noteKey)
+        return !!note && removeNote(note)
+    }
+    function emptyTrash() {
+        var count = 0
+        _all.filter(function (n) {
+            return n.trashed && (!accountFilter || n.accountKey === accountFilter) && canWrite(n.accountKey)
+        }).forEach(function (n) {
+            if (removeNote(n))
+                count++
+        })
+        return count
+    }
+
+    // Reverts lastAction (the note goes back to how it was) and clears it.
+    function undoLast() {
+        if (!lastAction || !_undo)
+            return false
+        var snapshot = _undo
+        dismissAction()
+        return saveNote(snapshot) !== ""
+    }
+    function dismissAction() {
+        lastAction = null
+        _undo = null
+    }
+
+    // --- Drag & drop of a note onto a rail group
+    // The result of dropping, or null when the drop is not allowed / would change nothing.
+    function _dropPlan(noteKey, railKey) {
+        var note = noteByKey(noteKey)
+        if (!note || !canWrite(note.accountKey))
+            return null
+        var caps = capabilities(note.accountKey)
+        if (!caps || caps.labels === "none")
+            return null
+        if (railKey === "unlabeled")
+            return note.labels.length === 0 ? null : { note: note, labels: [], kind: "unlabeled", name: "" }
+        if (railKey.indexOf("label:") !== 0)
+            return null
+        var key = railKey.substring("label:".length)
+        var target = null
+        for (var i = 0; i < labels.length; i++) {
+            if (labels[i].key === key)
+                target = labels[i]
+        }
+        // Labels belong to an account: a note can't be put into another account's group.
+        if (!target || target.accountKey !== note.accountKey)
+            return null
+        if (note.labels.some(function (l) { return l.id === target.id }))
+            return null
+        var next = caps.labels === "single" ? [target] : note.labels.concat([target])
+        return { note: note, labels: next, kind: "labeled", name: target.name }
+    }
+
+    // Whether dropping `noteKey` on `railKey` is allowed and does something (used to highlight targets).
+    function canDrop(noteKey, railKey) {
+        return _dropPlan(noteKey, railKey) !== null
+    }
+
+    // "Label" groups add the label (or replace it for single-category providers), "No label" removes all
+    // labels; All/Archive/Trash and other accounts' labels are refused. Undoable through undoLast.
+    function dropNote(noteKey, railKey) {
+        var plan = _dropPlan(noteKey, railKey)
+        if (!plan)
+            return false
+        _remember(plan.kind, plan.note, plan.name)
+        return updateNote(noteKey, { labels: plan.labels })
+    }
 
     // --- Internals
     // Only provider-neutral fields go to the provider; view-only fields (keys, account tags) are dropped.
@@ -309,13 +512,7 @@ QtObject {
             currentNote = null
             return
         }
-        var found = null
-        for (var i = 0; i < _all.length; i++) {
-            if (_all[i].key === currentNoteKey) {
-                found = _all[i]
-                break
-            }
-        }
+        var found = noteByKey(currentNoteKey)
         if (found) {
             currentNote = found
         } else {

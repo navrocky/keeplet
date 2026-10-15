@@ -480,4 +480,227 @@ TestCase {
         compare(c.vm.capabilities("fake:me@x").labels, "multi")
         verify(c.vm.capabilities("nope") === null)
     }
+
+    // --- drag & drop, undoable actions, trash, new notes (stage E)
+
+    function entryCaps(account, opts, caps) {
+        var e = entry(account, opts)
+        e.provider.capabilities = Object.assign({}, Fake.capabilities, caps)
+        return e
+    }
+
+    function labelsOfNote(vm, id) {
+        return vm.noteByKey("fake:me@x/" + id).labels.map(function (l) { return l.id }).join()
+    }
+
+    function test_dropOnLabelAddsItAndKeepsTheOthers() {
+        var data = personalData()
+        data.labels.push({ id: "L2", name: "Home" })
+        var c = make([entry(keepAcc, { data: data })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.canDrop("fake:me@x/b", "label:fake:me@x|L2"))
+        verify(c.vm.dropNote("fake:me@x/b", "label:fake:me@x|L2"))
+        compare(labelsOfNote(c.vm, "b"), "L1,L2")
+        compare(c.vm.unsynced, 1)
+    }
+
+    function test_dropOnTheSameLabelOrAllIsRefused() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(!c.vm.canDrop("fake:me@x/b", "label:fake:me@x|L1"))   // already there
+        verify(!c.vm.canDrop("fake:me@x/a", "all"))
+        verify(!c.vm.canDrop("fake:me@x/a", "archive"))
+        verify(!c.vm.canDrop("fake:me@x/a", "trash"))
+        verify(!c.vm.dropNote("fake:me@x/a", "all"))
+        compare(c.vm.unsynced, 0)
+    }
+
+    function test_dropOnNoLabelClearsAllLabels() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(!c.vm.canDrop("fake:me@x/a", "unlabeled"))             // nothing to remove
+        verify(c.vm.dropNote("fake:me@x/b", "unlabeled"))
+        compare(labelsOfNote(c.vm, "b"), "")
+        c.vm.select("unlabeled")
+        verify(c.vm.notes.some(function (n) { return n.id === "b" }))
+    }
+
+    function test_dropIntoAnotherAccountsLabelIsRefused() {
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        // "a" belongs to me@x, the label to the work account (same label id L1 in both accounts)
+        verify(!c.vm.canDrop("fake:me@x/a", "label:fake:work|L1"))
+        verify(c.vm.canDrop("fake:me@x/a", "label:fake:me@x|L1"))
+    }
+
+    function test_singleCategoryProviderReplacesTheLabel() {
+        var data = personalData()
+        data.labels.push({ id: "L2", name: "Home" })
+        var c = make([entryCaps(keepAcc, { data: data }, { labels: "single" })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.dropNote("fake:me@x/b", "label:fake:me@x|L2"))
+        compare(labelsOfNote(c.vm, "b"), "L2")
+    }
+
+    function test_providerWithoutLabelsRefusesDrops() {
+        var c = make([entryCaps(keepAcc, { data: personalData() }, { labels: "none" })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(!c.vm.canDrop("fake:me@x/b", "unlabeled"))
+    }
+
+    function test_dropCanBeUndone() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.dropNote("fake:me@x/b", "unlabeled")
+        compare(c.vm.lastAction.kind, "unlabeled")
+        compare(c.vm.lastAction.noteKey, "fake:me@x/b")
+        verify(c.vm.undoLast())
+        compare(labelsOfNote(c.vm, "b"), "L1")
+        verify(c.vm.lastAction === null)
+    }
+
+    function test_trashArchiveAreUndoable() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.trashNote("fake:me@x/a"))
+        compare(c.vm.lastAction.kind, "trashed")
+        verify(c.vm.noteByKey("fake:me@x/a").trashed)
+        verify(c.vm.undoLast())
+        verify(!c.vm.noteByKey("fake:me@x/a").trashed)
+
+        verify(c.vm.archiveNote("fake:me@x/a", true))
+        compare(c.vm.lastAction.kind, "archived")
+        verify(c.vm.noteByKey("fake:me@x/a").archived)
+        c.vm.dismissAction()
+        verify(c.vm.lastAction === null)
+        verify(!c.vm.undoLast())
+    }
+
+    function test_pinColorRestoreGoThroughUpdateNote() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.setPinned("fake:me@x/a", true))
+        verify(c.vm.noteByKey("fake:me@x/a").pinned)
+        verify(c.vm.setColor("fake:me@x/a", "RED"))
+        compare(c.vm.noteByKey("fake:me@x/a").color, "RED")
+        verify(c.vm.restoreNote("fake:me@x/d"))
+        verify(!c.vm.noteByKey("fake:me@x/d").trashed)
+        verify(!c.vm.updateNote("fake:me@x/nope", { pinned: true }))
+    }
+
+    function test_deleteForeverAndEmptyTrash() {
+        var opts = { data: personalData() }
+        opts.data.notes.push(note("e", { title: "Epsilon", trashed: true, order: 1 }))
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        verify(c.vm.deleteForever("fake:me@x/d"))
+        verify(c.vm.noteByKey("fake:me@x/d") === null)
+        compare(c.vm.emptyTrash(), 1)          // only "e" was left in the trash
+        verify(c.vm.noteByKey("fake:me@x/e") === null)
+        verify(c.vm.noteByKey("fake:me@x/a") !== null)
+        tryVerify(function () { return c.vm.unsynced === 0 })
+        verify(opts.data.notes.every(function (n) { return n.id !== "d" && n.id !== "e" }))
+    }
+
+    function test_emptyTrashRespectsTheAccountFilter() {
+        var wd = workData()
+        wd.notes.push(note("wt", { title: "Work trash", trashed: true, order: 1 }))
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: wd })])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        c.vm.selectAccount("fake:work")
+        compare(c.vm.emptyTrash(), 1)
+        verify(c.vm.noteByKey("fake:me@x/d") !== null)   // the other account's trash is untouched
+    }
+
+    // --- new notes
+
+    function test_newNoteIsADraftUntilFirstSave() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.openNewNote("NOTE"))
+        compare(c.vm.currentNoteKey, "<new>")
+        compare(c.vm.currentNote.id, "")
+        compare(c.vm.currentNote.accountKey, "fake:me@x")
+        compare(c.vm.unsynced, 0)                       // nothing is stored yet
+        c.vm.closeNote()
+        compare(c.vm.notes.length, 2)                   // closing untouched leaves nothing behind
+        verify(c.vm.currentNote === null)
+    }
+
+    function test_savingTheDraftCreatesTheNoteAndKeepsItOpen() {
+        var opts = { data: personalData() }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        c.vm.openNewNote("NOTE")
+        var draft = JSON.parse(JSON.stringify(c.vm.currentNote))
+        draft.title = "Fresh"
+        var key = c.vm.saveNote(draft)
+        verify(key.indexOf("fake:me@x/") === 0)
+        compare(c.vm.currentNoteKey, "<new>")           // the editor keeps working on the same key
+        compare(c.vm.currentNote.title, "Fresh")
+        compare(c.vm.noteByKey("<new>").id, c.vm.noteByKey(key).id)
+        tryVerify(function () { return c.vm.unsynced === 0 })
+        verify(opts.data.notes.some(function (n) { return n.title === "Fresh" }))
+    }
+
+    function test_newListStartsWithOneEmptyItem() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.openNewNote("LIST")
+        compare(c.vm.currentNote.type, "LIST")
+        compare(c.vm.currentNote.items.length, 1)
+        compare(c.vm.currentNote.items[0].text, "")
+    }
+
+    function test_newNoteGoesToTheAccountAndLabelInView() {
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        c.vm.selectAccount("fake:work")
+        c.vm.openNewNote("NOTE")
+        compare(c.vm.currentNote.accountKey, "fake:work")
+        c.vm.closeNote()
+        c.vm.selectAccount("")
+        c.vm.select("label:fake:me@x|L1")
+        c.vm.openNewNote("NOTE")
+        compare(c.vm.currentNote.accountKey, "fake:me@x")
+        compare(c.vm.currentNote.labels.map(function (l) { return l.id }).join(), "L1")
+    }
+
+    function test_newNoteInArchiveViewIsArchived() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.select("archive")
+        c.vm.openNewNote("NOTE")
+        verify(c.vm.currentNote.archived)
+    }
+
+    function test_newNoteRemembersTheLastUsedAccount() {
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        c.vm.openNewNote("NOTE")
+        c.vm.currentNote.accountKey                      // default: first account in key order
+        var draft = JSON.parse(JSON.stringify(c.vm.currentNote))
+        draft.accountKey = "fake:work"
+        draft.title = "To work"
+        c.vm.saveNote(draft)
+        c.vm.closeNote()
+        c.vm.openNewNote("NOTE")
+        compare(c.vm.currentNote.accountKey, "fake:work")
+    }
+
+    function test_noWritableAccountMeansNoNewNote() {
+        var ro = entryCaps(keepAcc, { data: personalData() }, { write: false })
+        var c = make([ro])
+        tryVerify(function () { return c.vm.loaded })
+        verify(!c.vm.openNewNote("NOTE"))
+        compare(c.vm.writableAccounts().length, 0)
+    }
+
+    function test_labelsOfAnAccount() {
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        compare(c.vm.labelsOf("fake:work").length, 1)
+        compare(c.vm.labelsOf("fake:work")[0].name, "Work")
+        compare(c.vm.labelsOf("nope").length, 0)
+    }
 }
