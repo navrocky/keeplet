@@ -12,7 +12,7 @@ var icon = "applications-development"
 
 var capabilities = {
     labels: "multi", colors: ["DEFAULT", "RED", "BLUE"], checklists: true, nestedItems: false,
-    pinned: true, archive: true, trash: true, images: false, write: true, offlineEdit: true
+    pinned: true, archive: true, trash: true, images: false, write: true, reorder: true, offlineEdit: true
 }
 
 var credentialFields = [{ key: "name", label: "Name", secret: false }]
@@ -56,6 +56,8 @@ function createSession(account, secret, options) {
             ;(state.pending || []).forEach(function (op) {
                 if (op.kind === "remove")
                     data.notes = data.notes.filter(function (n) { return n.id !== op.id })
+                else if (op.kind === "order")
+                    data.notes.forEach(function (n) { if (n.id === op.id) n.order = op.order })
                 else
                     upsert(data.notes, JSON.parse(JSON.stringify(op.note)))
             })
@@ -92,6 +94,18 @@ function createSession(account, secret, options) {
             upsert(state.notes, note)
             state.pending.push({ kind: "save", note: note })
             return Notes.makeNote(note)
+        },
+
+        reorder: function (state, noteId, order) {
+            var done = false
+            state.notes.forEach(function (n) {
+                if (n.id === noteId && n.order !== order) {
+                    n.order = order
+                    state.pending.push({ kind: "order", id: noteId, order: order })
+                    done = true
+                }
+            })
+            return done
         },
 
         remove: function (state, noteId) {

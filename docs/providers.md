@@ -36,6 +36,7 @@ Session:
 | `commit(state, snapshot)` | *(if `capabilities.write`)* applies an edited note (new one: empty `id`) to `state` at once and queues it; returns the note as stored, with generated ids |
 | `remove(state, noteId)` | *(if `capabilities.write`)* deletes a note for good, queued like an edit |
 | `pending(state)` | *(if `capabilities.write`)* number of queued edits |
+| `reorder(state, noteId, order)` | *(if `capabilities.reorder`)* puts a note at `order` in the account's own sequence (descending = top first); returns whether anything changed; queued like an edit |
 
 Sessions own their tokens and refresh them internally (Keep: auth token cache, one retry on 401).
 

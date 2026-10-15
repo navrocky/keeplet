@@ -63,7 +63,7 @@ TestCase {
         compare(Keep.capabilities.colors.length, 12)
         verify(Contract.validate({ id: "x", name: "X", icon: "i", capabilities: {
             labels: "none", colors: true, checklists: false, nestedItems: false, pinned: false, archive: false,
-            trash: false, images: false, write: false, offlineEdit: false
+            trash: false, images: false, write: false, reorder: false, offlineEdit: false
         }, credentialFields: [{ key: "k", label: "L" }], signIn: function () {}, createSession: function () {} })
             .some(function (p) { return p.indexOf("colors must be an array") >= 0 }))
     }
@@ -332,5 +332,42 @@ TestCase {
         s.sync(state).then(function () { done = true })
         tryVerify(function () { return done })
         compare(opts.data.notes.length, 0)
+    }
+
+    function test_keepSessionReordersANote() {
+        var log = []
+        var s = keepSession(echoServer(log))
+        var state = s.createState()
+        var a = s.commit(state, noteSnapshot("A"))
+        var b = s.commit(state, noteSnapshot("B"))          // created later: above A
+        var done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(s.notes(state).map(function (n) { return n.title }).join(), "B,A")
+        verify(s.reorder(state, a.id, b.order + 5000))
+        compare(s.notes(state).map(function (n) { return n.title }).join(), "A,B")
+        compare(s.pending(state), 1)
+        done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(s.pending(state), 0)
+        compare(log[log.length - 1].nodes.length, 1)        // only the moved note was sent
+        compare(s.notes(state)[0].title, "A")
+    }
+
+    function test_fakeReorderRoundTrip() {
+        var opts = { data: { notes: [{ id: "a", title: "A", order: 10 }, { id: "b", title: "B", order: 20 }], labels: [] } }
+        var s = Fake.createSession(account, "s", opts)
+        var state = s.createState()
+        var done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        verify(s.reorder(state, "a", 30))
+        verify(!s.reorder(state, "a", 30))
+        compare(s.pending(state), 1)
+        done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(opts.data.notes.filter(function (n) { return n.id === "a" })[0].order, 30)
     }
 }

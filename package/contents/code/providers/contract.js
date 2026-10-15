@@ -3,11 +3,13 @@
 // Structural check of the provider contract (docs/providers.md). Returns a list of problems;
 // an empty list means the provider is usable. Run by tests for every provider.
 
-var CAPABILITY_KEYS = ["labels", "colors", "checklists", "nestedItems", "pinned", "archive", "trash", "images", "write", "offlineEdit"]
+var CAPABILITY_KEYS = ["labels", "colors", "checklists", "nestedItems", "pinned", "archive", "trash", "images", "write", "reorder", "offlineEdit"]
 var LABEL_MODES = ["multi", "single", "none"]
 var SESSION_METHODS = ["createState", "restoreState", "sync", "notes", "labels"]
 // Required when capabilities.write is true.
 var WRITE_METHODS = ["commit", "remove", "pending"]
+// Required when capabilities.reorder is true.
+var REORDER_METHODS = ["reorder"]
 
 function validate(provider) {
     var problems = []
@@ -44,6 +46,8 @@ function validateSession(session, capabilities) {
     var required = SESSION_METHODS.slice()
     if (capabilities && capabilities.write)
         required = required.concat(WRITE_METHODS)
+    if (capabilities && capabilities.reorder)
+        required = required.concat(REORDER_METHODS)
     required.forEach(function (m) {
         if (!session || typeof session[m] !== "function")
             problems.push("session." + m + " must be a function")

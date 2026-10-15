@@ -15,6 +15,7 @@ var capabilities = {
     labels: "multi", colors: Nodes.COLORS, checklists: true, nestedItems: true,
     pinned: true, archive: true, trash: true, images: true,
     write: true,      // session.commit / remove / pending
+    reorder: true,    // session.reorder (manual order of notes; sortValue of the note node)
     offlineEdit: true // edits are queued locally and sent when the server is reachable
 }
 
@@ -161,6 +162,12 @@ function createSession(account, secret, options) {
         remove: function (state, noteId) {
             Nodes.normalizeState(state)
             Mutations.remove(state, noteId)
+        },
+
+        // Puts a note at `order` in the account's sequence (higher = nearer the top). Queued like any edit.
+        reorder: function (state, noteId, order) {
+            Nodes.normalizeState(state)
+            return Mutations.reorder(state, noteId, order)
         },
 
         // Number of local edits not yet accepted by the server.
