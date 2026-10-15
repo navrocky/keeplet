@@ -10,6 +10,8 @@ Item {
 
     required property var vm
     property bool multiAccount: false
+    // The note being dragged ("" when none): groups that can take it grow, the others dim.
+    property string dragNoteKey: ""
 
     readonly property int expandedWidth: Kirigami.Units.gridUnit * 10
     readonly property int collapsedWidth: Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.largeSpacing * 2 + 4
@@ -84,6 +86,19 @@ Item {
 
                 // A note being dragged over a group that would accept it.
                 readonly property bool dropHover: dropArea.containsDrag && dropArea.accepted
+                // A note is being carried and this group could take it.
+                readonly property bool takesDrag: rail.dragNoteKey !== "" && !isHeader && modelData.droppable
+                                                  && rail.vm.canDrop(rail.dragNoteKey, modelData.key)
+
+                transformOrigin: Item.Left
+                scale: dropHover ? 1.1 : (takesDrag ? 1.03 : 1)
+                opacity: rail.dragNoteKey === "" || isHeader || takesDrag ? 1 : 0.45
+                Behavior on scale {
+                    NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+                }
+                Behavior on opacity {
+                    NumberAnimation { duration: Kirigami.Units.shortDuration }
+                }
 
                 onClicked: rail.vm.select(modelData.key)
                 QQC2.ToolTip.text: rail.groupName(modelData) + (isHeader ? "" : " (" + modelData.count + ")")

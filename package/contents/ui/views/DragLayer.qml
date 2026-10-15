@@ -13,8 +13,13 @@ Item {
     property bool active: false
     property string noteKey: ""
     property string title: ""
+    property color tint: Kirigami.Theme.backgroundColor
     // Pointer position in this item's coordinates while a drag is active.
     property point pointer: Qt.point(0, 0)
+
+    // The ghost starts as the card and shrinks to this chip under the pointer.
+    readonly property real chipWidth: Math.min(width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 10)
+    readonly property real chipHeight: label.implicitHeight + Kirigami.Units.largeSpacing * 2
 
     // Emitted after drop(): the action returned by the drop targets (Qt.IgnoreAction if nobody took it).
     signal ended(int action)
@@ -25,17 +30,24 @@ Item {
 
     visible: false
 
-    function begin(key, text, x, y) {
+    // (x, y) is the pointer, (startWidth, startHeight) the size of the card that is picked up.
+    function begin(key, text, x, y, startWidth, startHeight, color) {
         if (active)
             cancel()
         noteKey = key
         title = text
+        tint = color
         pointer = Qt.point(x, y)
-        ghost.x = x - ghost.width / 2
-        ghost.y = y - ghost.height / 2
+        // Jump to the card's size without animation, then shrink to the chip.
+        ghost.animate = false
+        ghost.width = startWidth
+        ghost.height = startHeight
+        ghost.animate = true
         active = true
         visible = true
         ghost.visible = true
+        ghost.width = Qt.binding(function () { return layer.chipWidth })
+        ghost.height = Qt.binding(function () { return layer.chipHeight })
         watchdog.restart()
     }
 
@@ -43,8 +55,6 @@ Item {
         if (!active)
             return
         pointer = Qt.point(x, y)
-        ghost.x = x - ghost.width / 2
-        ghost.y = y - ghost.height / 2
         watchdog.restart()
     }
 
@@ -81,14 +91,27 @@ Item {
 
     Rectangle {
         id: ghost
+        property bool animate: true
         visible: false
-        width: Math.min(layer.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 12)
-        height: label.implicitHeight + Kirigami.Units.largeSpacing * 2
+        // Centered on the pointer; the size changes while the card shrinks into the chip.
+        x: layer.pointer.x - width / 2
+        y: layer.pointer.y - height / 2
+        width: layer.chipWidth
+        height: layer.chipHeight
         radius: Kirigami.Units.smallSpacing * 2
-        color: Kirigami.Theme.backgroundColor
+        color: layer.tint
         border.color: Kirigami.Theme.highlightColor
         border.width: 2
-        opacity: 0.9
+        opacity: 0.92
+
+        Behavior on width {
+            enabled: ghost.animate
+            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+        }
+        Behavior on height {
+            enabled: ghost.animate
+            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+        }
 
         Drag.active: layer.active
         Drag.source: ghost
