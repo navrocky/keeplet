@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import QtQuick.Controls as QQC2
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
@@ -23,6 +24,47 @@ ColumnLayout {
         }
     }
 
+    function actionText(action) {
+        if (!action)
+            return ""
+        switch (action.kind) {
+        case "trashed": return i18n("Note moved to the trash.")
+        case "archived": return i18n("Note archived.")
+        case "unarchived": return i18n("Note unarchived.")
+        case "labeled": return i18n("Added to \u201c%1\u201d.", action.label)
+        case "unlabeled": return i18n("Removed from all labels.")
+        default: return ""
+        }
+    }
+
+    function dragLayerParent() {
+        if (QQC2.Overlay.overlay)
+            return QQC2.Overlay.overlay
+        return view.Window.window ? view.Window.window.contentItem : view
+    }
+
+    // --- drag of a note onto a group: the ghost follows the pointer, groups accept the drop
+    function beginDrag(note, card) {
+        ghost.noteKey = note.key
+        ghost.title = note.title !== "" ? note.title : i18n("Untitled note")
+        ghost.width = Math.min(card.width, Kirigami.Units.gridUnit * 12)
+        ghostLayer.visible = true
+        ghost.visible = true
+    }
+    function moveDrag(scenePosition) {
+        var p = ghostLayer.mapFromItem(null, scenePosition.x, scenePosition.y)
+        ghost.x = p.x - ghost.width / 2
+        ghost.y = p.y - ghost.height / 2
+    }
+    function endDrag() {
+        if (!ghost.visible)
+            return
+        ghost.Drag.drop()
+        ghost.visible = false
+        ghostLayer.visible = false
+        ghost.noteKey = ""
+    }
+
     RowLayout {
         Layout.fillWidth: true
 
@@ -38,6 +80,29 @@ ColumnLayout {
             Layout.fillWidth: true
             placeholderText: i18n("Search notes")
             onTextChanged: view.vm.searchText = text
+        }
+
+        PlasmaComponents.ToolButton {
+            id: addButton
+            icon.name: "list-add"
+            enabled: view.vm.canCreate
+            onClicked: addMenu.popup(addButton, 0, addButton.height)
+            PlasmaComponents.ToolTip.text: i18n("New note")
+            PlasmaComponents.ToolTip.visible: hovered
+
+            QQC2.Menu {
+                id: addMenu
+                QQC2.MenuItem {
+                    text: i18n("New note")
+                    icon.name: "document-new"
+                    onTriggered: view.vm.openNewNote("NOTE")
+                }
+                QQC2.MenuItem {
+                    text: i18n("New list")
+                    icon.name: "view-list-details"
+                    onTriggered: view.vm.openNewNote("LIST")
+                }
+            }
         }
 
         PlasmaComponents.ToolButton {
@@ -103,6 +168,53 @@ ColumnLayout {
         }
     }
 
+    // "Undo" notice for the last trash/archive/label action; hides itself after a while.
+    Kirigami.InlineMessage {
+        id: undoNotice
+        Layout.fillWidth: true
+        type: Kirigami.MessageType.Information
+        visible: view.vm.lastAction !== null
+        text: view.actionText(view.vm.lastAction)
+        actions: [
+            Kirigami.Action {
+                text: i18n("Undo")
+                icon.name: "edit-undo"
+                onTriggered: view.vm.undoLast()
+            }
+        ]
+    }
+
+    Timer {
+        id: noticeTimer
+        interval: 7000
+        running: view.vm.lastAction !== null
+        onTriggered: view.vm.dismissAction()
+    }
+    Connections {
+        target: view.vm
+        function onLastActionChanged() {
+            if (view.vm.lastAction !== null)
+                noticeTimer.restart()
+        }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        visible: view.vm.selected === "trash" && view.vm.notes.length > 0
+
+        PlasmaComponents.Label {
+            Layout.fillWidth: true
+            opacity: 0.7
+            text: i18n("Notes in the trash can be restored or deleted for good.")
+            wrapMode: Text.Wrap
+        }
+        PlasmaComponents.Button {
+            icon.name: "edit-delete"
+            text: i18n("Empty trash")
+            onClicked: confirmEmpty.open()
+        }
+    }
+
     RowLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
@@ -126,10 +238,15 @@ ColumnLayout {
                 clip: true
 
                 delegate: NoteCard {
+                    id: card
                     required property var modelData
                     width: list.width
                     note: modelData
                     onClicked: view.vm.openNote(modelData.key)
+                    onContextRequested: position => noteMenu.openFor(modelData, card, position)
+                    onDragStarted: view.beginDrag(modelData, card)
+                    onDragMoved: scenePosition => view.moveDrag(scenePosition)
+                    onDragFinished: view.endDrag()
                 }
 
                 PlasmaComponents.Label {
@@ -145,5 +262,164 @@ ColumnLayout {
                 }
             }
         }
+    }
+
+    // Overlays -------------------------------------------------------------------------------
+
+    // Floats above everything while a note is dragged; DropAreas in the rail receive its Drag events.
+    Item {
+        id: ghostLayer
+        // Not a child of the layout above; the window's overlay (or content item) covers the whole popup.
+        // Set once: binding to it would loop, since the overlay is found through this item's own window.
+        Component.onCompleted: parent = view.dragLayerParent()
+        // Invisible (and so not in the way of any pointer event) except while a note is dragged.
+        visible: false
+        x: 0
+        y: 0
+        width: parent ? parent.width : 0
+        height: parent ? parent.height : 0
+
+        Rectangle {
+            id: ghost
+            property string noteKey: ""
+            property string title: ""
+            visible: false
+            z: 1000
+            height: ghostLabel.implicitHeight + Kirigami.Units.largeSpacing * 2
+            radius: Kirigami.Units.smallSpacing * 2
+            color: Kirigami.Theme.backgroundColor
+            border.color: Kirigami.Theme.highlightColor
+            border.width: 2
+            opacity: 0.9
+
+            Drag.active: visible
+            Drag.source: ghost
+            Drag.hotSpot: Qt.point(width / 2, height / 2)
+
+            PlasmaComponents.Label {
+                id: ghostLabel
+                anchors.fill: parent
+                anchors.margins: Kirigami.Units.largeSpacing
+                text: ghost.title
+                elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+    }
+
+    QQC2.Menu {
+        id: noteMenu
+        property var note: null
+        readonly property bool inTrash: note !== null && note.trashed
+        readonly property var colors: note !== null && view.vm.capabilities(note.accountKey)
+                                      ? view.vm.capabilities(note.accountKey).colors : []
+
+        function openFor(n, item, position) {
+            note = n
+            popup(item, position.x, position.y)
+        }
+
+        QQC2.MenuItem {
+            visible: !noteMenu.inTrash
+            height: visible ? implicitHeight : 0
+            text: noteMenu.note !== null && noteMenu.note.pinned ? i18n("Unpin") : i18n("Pin")
+            icon.name: "pin"
+            onTriggered: view.vm.setPinned(noteMenu.note.key, !noteMenu.note.pinned)
+        }
+        QQC2.MenuItem {
+            visible: !noteMenu.inTrash && noteMenu.colors.length > 0
+            height: visible ? implicitHeight : 0
+            text: i18n("Color…")
+            icon.name: "color-management"
+            onTriggered: colorPopup.openFor(noteMenu.note)
+        }
+        QQC2.MenuItem {
+            visible: !noteMenu.inTrash
+            height: visible ? implicitHeight : 0
+            text: noteMenu.note !== null && noteMenu.note.archived ? i18n("Unarchive") : i18n("Archive")
+            icon.name: "archive-insert"
+            onTriggered: view.vm.archiveNote(noteMenu.note.key, !noteMenu.note.archived)
+        }
+        QQC2.MenuItem {
+            visible: !noteMenu.inTrash
+            height: visible ? implicitHeight : 0
+            text: i18n("Move to trash")
+            icon.name: "user-trash"
+            onTriggered: view.vm.trashNote(noteMenu.note.key)
+        }
+        QQC2.MenuItem {
+            visible: noteMenu.inTrash
+            height: visible ? implicitHeight : 0
+            text: i18n("Restore")
+            icon.name: "edit-undo"
+            onTriggered: view.vm.restoreNote(noteMenu.note.key)
+        }
+        QQC2.MenuItem {
+            visible: noteMenu.inTrash
+            height: visible ? implicitHeight : 0
+            text: i18n("Delete forever…")
+            icon.name: "edit-delete"
+            onTriggered: confirmDelete.openFor(noteMenu.note)
+        }
+    }
+
+    QQC2.Popup {
+        id: colorPopup
+        property var note: null
+        parent: view
+        x: Math.round((view.width - width) / 2)
+        y: Math.round(view.height / 3)
+        padding: Kirigami.Units.largeSpacing
+        closePolicy: QQC2.Popup.CloseOnEscape | QQC2.Popup.CloseOnPressOutside
+
+        function openFor(n) {
+            note = n
+            open()
+        }
+
+        contentItem: ColorPicker {
+            colors: colorPopup.note !== null && view.vm.capabilities(colorPopup.note.accountKey)
+                    ? view.vm.capabilities(colorPopup.note.accountKey).colors : []
+            current: colorPopup.note !== null ? colorPopup.note.color : "DEFAULT"
+            onPicked: name => {
+                view.vm.setColor(colorPopup.note.key, name)
+                colorPopup.close()
+            }
+        }
+    }
+
+    QQC2.Dialog {
+        id: confirmDelete
+        property var note: null
+        parent: view
+        anchors.centerIn: parent
+        modal: true
+        title: i18n("Delete forever?")
+        width: Math.min(view.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 20)
+        standardButtons: QQC2.Dialog.Yes | QQC2.Dialog.No
+        function openFor(n) {
+            note = n
+            open()
+        }
+        contentItem: PlasmaComponents.Label {
+            wrapMode: Text.Wrap
+            text: i18n("This note will be deleted permanently and can't be restored.")
+        }
+        onAccepted: view.vm.deleteForever(note.key)
+    }
+
+    QQC2.Dialog {
+        id: confirmEmpty
+        parent: view
+        anchors.centerIn: parent
+        modal: true
+        title: i18n("Empty trash?")
+        width: Math.min(view.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 20)
+        standardButtons: QQC2.Dialog.Yes | QQC2.Dialog.No
+        contentItem: PlasmaComponents.Label {
+            wrapMode: Text.Wrap
+            text: i18n("All notes in the trash will be deleted permanently and can't be restored.")
+        }
+        onAccepted: view.vm.emptyTrash()
     }
 }

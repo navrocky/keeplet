@@ -11,6 +11,12 @@ Rectangle {
     required property var note
 
     signal clicked()
+    // Right click: the note and the pointer position in this card.
+    signal contextRequested(var position)
+    // Drag of the card: started / moved (scene position) / finished.
+    signal dragStarted()
+    signal dragMoved(var scenePosition)
+    signal dragFinished()
 
     // Palette follows the theme; overridable for previews and tests.
     property bool dark: KeepColors.isDark(Kirigami.Theme.backgroundColor)
@@ -25,8 +31,35 @@ Rectangle {
     implicitHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 2
 
     TapHandler {
+        acceptedButtons: Qt.LeftButton
         onTapped: card.clicked()
         cursorShape: Qt.PointingHandCursor
+    }
+
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: eventPoint => card.contextRequested(eventPoint.position)
+    }
+
+    // The card itself stays put; the screen shows a ghost that follows the pointer.
+    // Only a horizontal move starts the drag (towards the group rail), so vertical drags keep scrolling the list.
+    DragHandler {
+        id: dragHandler
+        acceptedButtons: Qt.LeftButton
+        target: null
+        xAxis.enabled: true
+        yAxis.enabled: false
+        dragThreshold: Kirigami.Units.smallSpacing * 2
+        onActiveChanged: {
+            if (active)
+                card.dragStarted()
+            else
+                card.dragFinished()
+        }
+        onCentroidChanged: {
+            if (active)
+                card.dragMoved(centroid.scenePosition)
+        }
     }
 
     ColumnLayout {

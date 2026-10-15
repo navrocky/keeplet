@@ -82,10 +82,40 @@ Item {
                 leftPadding: Kirigami.Units.smallSpacing * 2
                 rightPadding: Kirigami.Units.smallSpacing * 2
 
+                // A note being dragged over a group that would accept it.
+                readonly property bool dropHover: dropArea.containsDrag && dropArea.accepted
+
                 onClicked: rail.vm.select(modelData.key)
                 QQC2.ToolTip.text: rail.groupName(modelData) + (isHeader ? "" : " (" + modelData.count + ")")
                 QQC2.ToolTip.visible: hovered && rail.collapsed
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+                DropArea {
+                    id: dropArea
+                    anchors.fill: parent
+                    enabled: !row.isHeader && row.modelData.droppable
+                    // Whether the note under the pointer may go here; set when it enters.
+                    property bool accepted: false
+                    onEntered: drag => {
+                        accepted = rail.vm.canDrop(drag.source.noteKey, row.modelData.key)
+                        drag.accepted = accepted
+                    }
+                    onExited: accepted = false
+                    onDropped: drop => {
+                        if (accepted && rail.vm.dropNote(drop.source.noteKey, row.modelData.key))
+                            drop.accept()
+                        accepted = false
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    visible: row.dropHover
+                    color: Qt.alpha(Kirigami.Theme.highlightColor, 0.2)
+                    border.width: 2
+                    border.color: Kirigami.Theme.highlightColor
+                    radius: Kirigami.Units.smallSpacing
+                }
 
                 contentItem: RowLayout {
                     spacing: Kirigami.Units.smallSpacing
