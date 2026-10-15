@@ -33,6 +33,9 @@ Session:
 | `sync(state)` | `Promise<state>`: pushes the queue of local edits (if the provider supports writing), then pulls; may mutate `state`; rejects with `ProviderError` and keeps the queue |
 | `notes(state)` | array of normalized notes (shape in `core/notes.js`) |
 | `labels(state)` | `[{id, name}]` |
+| `commit(state, snapshot)` | *(if `capabilities.write`)* applies an edited note (new one: empty `id`) to `state` at once and queues it; returns the note as stored, with generated ids |
+| `remove(state, noteId)` | *(if `capabilities.write`)* deletes a note for good, queued like an edit |
+| `pending(state)` | *(if `capabilities.write`)* number of queued edits |
 
 Sessions own their tokens and refresh them internally (Keep: auth token cache, one retry on 401).
 

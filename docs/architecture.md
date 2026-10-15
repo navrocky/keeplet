@@ -43,7 +43,10 @@ No native code: stage 0 showed that both `/auth` and `/changes` work from QML XH
    ([keep-protocol.md](keep-protocol.md)). The state is snapshotted to the cache.
 4. On start each account's cached snapshot is shown immediately, then a sync runs; then it repeats on a timer
    (`syncInterval`) and on demand. A 401 refreshes the auth token and retries once (inside the provider).
-5. (Stage 3) UI edits mark nodes dirty; a debounced sync pushes them.
+5. Writing: a View hands an edited note to `NotesViewModel.saveNote` → `session.commit` applies it to the
+   provider state at once (optimistic) and queues it → the state is cached → after `writeDelay` of quiet the
+   queue is pushed by `session.sync`. A failed push keeps the queue (it is part of the cached state), so edits made
+   offline survive restarts and are sent later. `unsynced` tells the View how many edits are waiting.
 
 ## Where data lives
 | Data | Location |
