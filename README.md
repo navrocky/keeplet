@@ -40,11 +40,15 @@ your browser and hand Keeplet a one-time token:
 3. Copy the value of the **`oauth_token`** cookie (starts with `oauth2_4/`).
 4. Click the Keeplet icon, enter your Google e-mail, paste the token and click **Sign In**.
 
-The token works once; Keeplet exchanges it for a long-lived key and stores it in KWallet
-(or in the widget config if KWallet is disabled — the popup shows which).
+The token works once; Keeplet exchanges it for a long-lived key and stores it in KWallet.
+**If KWallet is disabled, the key is stored in a local database file in your home directory
+(`~/.local/share/plasmashell/QML/OfflineStorage/`) — enable KWallet if other users can read your files.**
 Don't share that key: it gives full access to your Google account.
 
-To sign out, right-click the widget → **Sign Out**. You can also revoke access in your
+Accounts are shared by all Keeplet widgets: sign in once, every new widget shows your notes.
+You can add more accounts from the widget menu (**Add account…**).
+
+To sign out, open the widget menu (☰) → **Sign out <account>**. You can also revoke access in your
 Google account → *Security* → *Your devices*.
 
 ## Use

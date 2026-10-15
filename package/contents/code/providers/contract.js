@@ -1,0 +1,45 @@
+.pragma library
+
+// Structural check of the provider contract (docs/providers.md). Returns a list of problems;
+// an empty list means the provider is usable. Run by tests for every provider.
+
+var CAPABILITY_KEYS = ["labels", "colors", "checklists", "nestedItems", "pinned", "archive", "trash", "images", "offlineEdit"]
+var LABEL_MODES = ["multi", "single", "none"]
+var SESSION_METHODS = ["createState", "restoreState", "sync", "notes", "labels"]
+
+function validate(provider) {
+    var problems = []
+    function need(cond, text) { if (!cond) problems.push(text) }
+
+    need(provider && typeof provider.id === "string" && provider.id !== "", "id must be a non-empty string")
+    need(provider && typeof provider.name === "string" && provider.name !== "", "name must be a non-empty string")
+    need(provider && typeof provider.icon === "string" && provider.icon !== "", "icon must be a non-empty string")
+    if (!provider)
+        return problems
+
+    var caps = provider.capabilities
+    need(caps && typeof caps === "object", "capabilities must be an object")
+    if (caps) {
+        CAPABILITY_KEYS.forEach(function (k) { need(k in caps, "capabilities." + k + " is missing") })
+        need(LABEL_MODES.indexOf(caps.labels) >= 0, "capabilities.labels must be one of " + LABEL_MODES.join("|"))
+    }
+
+    var fields = provider.credentialFields
+    need(Array.isArray(fields) && fields.length > 0, "credentialFields must be a non-empty array")
+    ;(fields || []).forEach(function (f, i) {
+        need(f && typeof f.key === "string" && typeof f.label === "string", "credentialFields[" + i + "] needs key and label")
+    })
+
+    need(typeof provider.signIn === "function", "signIn must be a function")
+    need(typeof provider.createSession === "function", "createSession must be a function")
+    return problems
+}
+
+function validateSession(session) {
+    var problems = []
+    SESSION_METHODS.forEach(function (m) {
+        if (!session || typeof session[m] !== "function")
+            problems.push("session." + m + " must be a function")
+    })
+    return problems
+}

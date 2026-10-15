@@ -1,5 +1,5 @@
 .pragma library
-.import "util.js" as Util
+.import "../../core/util.js" as Util
 
 // Port of gpsoauth (https://github.com/simon-weber/gpsoauth, MIT) as used by gkeepapi.
 // See docs/auth.md.

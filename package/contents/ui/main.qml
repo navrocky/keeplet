@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
 import "viewmodel"
 import "views"
@@ -12,28 +11,45 @@ PlasmoidItem {
     id: root
 
     Plasmoid.icon: "knotes"
-    toolTipSubText: account.signedIn ? account.email : i18n("Not signed in")
+    toolTipSubText: accountsVm.signedIn
+                    ? accountsVm.accounts.map(function (a) { return a.displayName }).join(", ")
+                    : i18n("Not signed in")
 
-    AuthViewModel {
-        id: account
+    // Services: global (shared by every instance of the widget).
+    LocalDb { id: localDb }
+    AccountsService { id: accountsService; db: localDb }
+    NotesCache { id: notesCache; db: localDb }
+
+    // ViewModels.
+    AccountsViewModel {
+        id: accountsVm
+        service: accountsService
         configuration: Plasmoid.configuration
     }
 
-    NotesCache { id: notesCache }
-
     NotesViewModel {
         id: notesVm
-        auth: account
+        accounts: accountsVm
         cache: notesCache
         syncInterval: Plasmoid.configuration.syncInterval
     }
 
+    // Accounts created by the single-account layout of earlier versions.
+    Component.onCompleted: {
+        accountsService.migrateLegacy(Plasmoid.configuration).then(function (migrated) {
+            if (migrated)
+                accountsVm.reload()
+        }).catch(function (e) {
+            console.warn("Keeplet: account migration failed:", e)
+        })
+    }
+
     Plasmoid.contextualActions: [
         PlasmaCore.Action {
-            text: i18n("Sign Out")
-            icon.name: "system-log-out"
-            visible: account.signedIn
-            onTriggered: account.signOut()
+            text: i18n("Add Account…")
+            icon.name: "list-add"
+            visible: accountsVm.signedIn
+            onTriggered: accountsVm.requestSignIn()
         }
     ]
 
@@ -46,17 +62,17 @@ PlasmoidItem {
         Loader {
             anchors.fill: parent
             anchors.margins: Kirigami.Units.smallSpacing
-            sourceComponent: account.signedIn ? notesView : signInView
+            sourceComponent: accountsVm.signedIn && !accountsVm.signInRequested ? notesView : signInView
         }
 
         Component {
             id: signInView
-            SignInView { auth: account }
+            SignInView { accounts: accountsVm }
         }
 
         Component {
             id: notesView
-            NotesView { vm: notesVm }
+            NotesView { vm: notesVm; accountsVm: accountsVm }
         }
     }
 }

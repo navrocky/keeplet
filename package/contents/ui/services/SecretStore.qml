@@ -1,13 +1,13 @@
 import QtQuick
 import org.kde.plasma.workspace.dbus as DBus
 
-// Stores one secret per key in KWallet (over D-Bus) when it is enabled,
-// otherwise in the widget config (configuration.secretFallback).
+// Stores one secret per key in KWallet (over D-Bus) when it is enabled, otherwise in the
+// shared local database (namespace "secrets"), so every widget instance sees the same secrets.
 // See docs/auth.md for the D-Bus module quirks handled here.
 QtObject {
     id: store
 
-    required property var configuration
+    required property var db
 
     // "kwallet" or "config"; empty until the first operation detects it.
     property string backend: ""
@@ -78,12 +78,12 @@ QtObject {
     function read(key) {
         return _detect().then(function (b) {
             if (b !== "kwallet")
-                return configuration.secretFallback
+                return db.get("secrets", key)
             return _withWallet(function (h) {
                 return _kwallet("readPassword", [h, folder, key, appId])
             }).then(function (v) {
                 // Secret saved while KWallet was disabled still counts.
-                return v || configuration.secretFallback
+                return v || db.get("secrets", key)
             })
         })
     }
@@ -91,7 +91,7 @@ QtObject {
     function write(key, value) {
         return _detect().then(function (b) {
             if (b !== "kwallet") {
-                configuration.secretFallback = value
+                db.set("secrets", key, value)
                 return
             }
             return _withWallet(function (h) {
@@ -99,13 +99,13 @@ QtObject {
             }).then(function (rc) {
                 if (rc !== 0)
                     throw new Error("KWallet: write failed (" + rc + ")")
-                configuration.secretFallback = ""
+                db.remove("secrets", key)
             })
         })
     }
 
     function remove(key) {
-        configuration.secretFallback = ""
+        db.remove("secrets", key)
         return _detect().then(function (b) {
             if (b !== "kwallet")
                 return

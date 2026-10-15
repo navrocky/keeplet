@@ -1,0 +1,139 @@
+import QtQuick
+import QtTest
+import "../package/contents/ui/viewmodel" as VM
+import "../package/contents/code/providers/fake.js" as Fake
+
+TestCase {
+    id: tc
+    name: "AccountsViewModel"
+    when: windowShown
+
+    // In-memory stand-in for services/AccountsService.qml.
+    Component {
+        id: serviceComp
+        QtObject {
+            property var accounts: []
+            property var secrets: ({})
+            property var removed: []
+            function list() { return JSON.parse(JSON.stringify(accounts)) }
+            function save(a) {
+                accounts = accounts.filter(function (x) { return x.key !== a.key }).concat([a])
+            }
+            function remove(key) {
+                accounts = accounts.filter(function (x) { return x.key !== key })
+                delete secrets[key]
+                removed.push(key)
+                return Promise.resolve()
+            }
+            function readSecret(key) { return Promise.resolve(secrets[key] || "") }
+            function writeSecret(key, v) { secrets[key] = v; return Promise.resolve() }
+        }
+    }
+    Component { id: vmComp; VM.AccountsViewModel {} }
+
+    readonly property var registry: ({
+        list: function () { return [Fake] },
+        get: function (id) { return id === "fake" ? Fake : null }
+    })
+
+    function acc(name) {
+        return { key: "fake:" + name, providerId: "fake", accountId: name, displayName: name, meta: {} }
+    }
+
+    function make(stored, secrets, config) {
+        var svc = serviceComp.createObject(tc, { accounts: stored || [], secrets: secrets || {} })
+        var vm = vmComp.createObject(tc, { service: svc, registry: registry, configuration: config || { accountKeys: [] } })
+        return { vm: vm, svc: svc }
+    }
+
+    function test_startsEmpty() {
+        var c = make()
+        wait(20)
+        verify(!c.vm.signedIn)
+        verify(!c.vm.multiAccount)
+        compare(c.vm.sessions.length, 0)
+    }
+
+    function test_loadsStoredAccountsWithSessions() {
+        var c = make([acc("a"), acc("b")], { "fake:a": "s1", "fake:b": "s2" })
+        tryVerify(function () { return c.vm.sessions.length === 2 })
+        verify(c.vm.signedIn)
+        verify(c.vm.multiAccount)
+        compare(c.vm.accounts[0].providerName, "Fake")
+        compare(c.vm.accounts[0].needsSignIn, false)
+    }
+
+    function test_accountWithoutSecretNeedsSignInAndHasNoSession() {
+        var c = make([acc("a"), acc("b")], { "fake:a": "s1" })
+        tryVerify(function () { return c.vm.accounts.length === 2 })
+        compare(c.vm.sessions.length, 1)
+        var b = c.vm.accounts.filter(function (x) { return x.key === "fake:b" })[0]
+        verify(b.needsSignIn)
+    }
+
+    function test_unknownProviderIsKeptButNotUsable() {
+        var stored = [{ key: "gone:x", providerId: "gone", accountId: "x", displayName: "x", meta: {} }]
+        var c = make(stored, { "gone:x": "s" })
+        tryVerify(function () { return c.vm.accounts.length === 1 })
+        compare(c.vm.sessions.length, 0)
+        verify(c.vm.accounts[0].needsSignIn)
+    }
+
+    function test_instanceScopeLimitsAccounts() {
+        var c = make([acc("a"), acc("b")], { "fake:a": "s1", "fake:b": "s2" }, { accountKeys: ["fake:b"] })
+        tryVerify(function () { return c.vm.accounts.length === 1 })
+        compare(c.vm.accounts[0].key, "fake:b")
+        verify(!c.vm.multiAccount)
+    }
+
+    function test_signInStoresSecretAndAccount() {
+        var c = make()
+        c.vm.signIn("fake", { name: "new" })
+        tryVerify(function () { return c.vm.sessions.length === 1 })
+        compare(c.svc.secrets["fake:new"], "fake-secret")
+        compare(c.svc.accounts[0].accountId, "new")
+        verify(!c.vm.busy)
+        compare(c.vm.error, "")
+    }
+
+    function test_signInFailureReportsCodeAndStoresNothing() {
+        var c = make()
+        c.vm.signIn("fake", { name: "bad" })
+        tryVerify(function () { return c.vm.error === "badCredentials" })
+        compare(c.svc.accounts.length, 0)
+        verify(!c.vm.busy)
+    }
+
+    function test_signInHidesFormAfterSuccess() {
+        var c = make([acc("a")], { "fake:a": "s" })
+        tryVerify(function () { return c.vm.signedIn })
+        c.vm.requestSignIn()
+        verify(c.vm.signInRequested)
+        c.vm.signIn("fake", { name: "b" })
+        tryVerify(function () { return c.vm.accounts.length === 2 })
+        verify(!c.vm.signInRequested)
+    }
+
+    function test_cancelSignIn() {
+        var c = make([acc("a")], { "fake:a": "s" })
+        tryVerify(function () { return c.vm.signedIn })
+        c.vm.requestSignIn()
+        c.vm.cancelSignIn()
+        verify(!c.vm.signInRequested)
+    }
+
+    function test_removeForgetsAccount() {
+        var c = make([acc("a"), acc("b")], { "fake:a": "s1", "fake:b": "s2" })
+        tryVerify(function () { return c.vm.sessions.length === 2 })
+        c.vm.remove("fake:a")
+        tryVerify(function () { return c.vm.sessions.length === 1 })
+        compare(c.svc.removed.join(), "fake:a")
+        compare(c.vm.accounts[0].key, "fake:b")
+    }
+
+    function test_providersExposeCredentialFields() {
+        var c = make()
+        compare(c.vm.providers.length, 1)
+        compare(c.vm.providers[0].credentialFields[0].key, "name")
+    }
+}

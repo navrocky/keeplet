@@ -13,34 +13,40 @@ Google's Terms of Service.
 
 ## Components (MVVM)
 ```
- View                ViewModel                 Model / services
- ────                ─────────                 ────────────────
- SignInView   ─────▶ AuthViewModel   ───────▶  gauth.js ── XHR ─▶ android.clients.google.com/auth
-                          │                    SecretStore ── D-Bus ─▶ kwalletd6 (master token)
- NotesView    ─────▶ NotesViewModel  ───────▶  keepapi.js ── XHR ─▶ googleapis.com/notes/v1
-  └ NoteCard              │                    nodes.js   (node graph → notes, pure)
-                          └────────────────▶   NotesCache ── LocalStorage (SQLite snapshot)
+ View                ViewModel                  Model / services
+ ────                ─────────                  ────────────────
+ SignInView   ─────▶ AccountsViewModel ───────▶ providers/registry.js ─▶ provider.signIn / createSession
+                          │                     AccountsService ─▶ LocalDb (registry) + SecretStore (KWallet / LocalDb)
+ NotesView    ─────▶ NotesViewModel   ───────▶  session.sync/notes/labels  (one session per account)
+  └ NoteCard              │                     core/workspace.js (merge, filter, sort)
+                          └────────────────▶    NotesCache ─▶ LocalDb (snapshot per account)
 ```
 - Views bind to ViewModel properties and call its commands; they hold no logic.
 - ViewModels never import visual types and never produce user-facing text (errors are codes).
 - Model code is pure JS (`.pragma library`) and is unit-tested in `tests/`.
+- Providers are pluggable ([providers.md](providers.md)); Google Keep is one of them.
 No native code: stage 0 showed that both `/auth` and `/changes` work from QML XHR
 ([decisions/0001-auth-helper.md](decisions/0001-auth-helper.md)).
 
 ## Data flow
-1. Login (once): user pastes `oauth_token` → exchanged for a long-lived **master token** → stored.
-2. Each session: master token → short-lived **auth token** (~1 h), kept in memory only.
-3. Sync (`NotesViewModel.refresh`): `POST /changes` with the last `toVersion`, repeated while the
-   server says `truncated`; changes are merged into the state (`nodes.applyChanges`) and the
-   whole state is snapshotted to the cache. Details: [keep-protocol.md](keep-protocol.md).
-4. On start the cached snapshot is shown immediately, then a sync runs; then it repeats on a timer
-   (`syncInterval`) and on demand. A 401 refreshes the auth token and retries once.
+1. Sign in (once per account): the provider exchanges the user's credentials for a long-lived secret
+   (Keep: `oauth_token` → **master token**), which is stored; the account is added to the global registry.
+2. Each widget start: accounts in scope are loaded, secrets read, one **session** per account created
+   (Keep: master token → short-lived **auth token** (~1 h), kept in memory only).
+3. Sync (`NotesViewModel.refresh`, per account, independently): `session.sync(state)`; for Keep that is
+   `POST /changes` with the last `toVersion`, repeated while `truncated`
+   ([keep-protocol.md](keep-protocol.md)). The state is snapshotted to the cache.
+4. On start each account's cached snapshot is shown immediately, then a sync runs; then it repeats on a timer
+   (`syncInterval`) and on demand. A 401 refreshes the auth token and retries once (inside the provider).
 5. (Stage 3) UI edits mark nodes dirty; a debounced sync pushes them.
 
 ## Where data lives
 | Data | Location |
 |---|---|
-| master token | KWallet folder `Keeplet`, or widget config if KWallet is disabled |
+| account registry | `LocalDb` (`QtQuick.LocalStorage` SQLite under `~/.local/share/plasmashell/QML/OfflineStorage/`), **global** |
+| secrets (master token) | KWallet folder `Keeplet`, key `<providerId>:<accountId>`; without KWallet the same `LocalDb`, **global** |
 | auth token | memory only |
-| notes snapshot (raw nodes, labels, `toVersion`) | `QtQuick.LocalStorage`, one JSON row per account (SQLite under `~/.local/share/plasmashell/QML/OfflineStorage/`) |
-| settings | widget config (`~/.config/plasma-org.kde.plasma.desktop-appletsrc`) |
+| notes snapshot (provider state) | `LocalDb`, one JSON row per account, **global** |
+| which accounts this widget shows, sync interval | widget config (`~/.config/plasma-org.kde.plasma.desktop-appletsrc`), **per instance** |
+
+Rationale and trade-offs: [decisions/0002-accounts-and-storage.md](decisions/0002-accounts-and-storage.md).

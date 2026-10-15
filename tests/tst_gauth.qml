@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../package/contents/code/gauth.js" as GAuth
+import "../package/contents/code/providers/keep/gauth.js" as GAuth
 
 TestCase {
     name: "GAuth"

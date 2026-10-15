@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
-import "../package/contents/code/keepapi.js" as KeepApi
-import "../package/contents/code/nodes.js" as Nodes
+import "../package/contents/code/providers/keep/keepapi.js" as KeepApi
+import "../package/contents/code/providers/keep/nodes.js" as Nodes
 
 TestCase {
     name: "KeepApi"

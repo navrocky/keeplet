@@ -28,7 +28,7 @@ for authentication and/or secret storage?
 **C. Rust helper prototype** — not needed.
 
 ## Decision
-- Auth: gpsoauth ported to JS (`contents/code/gauth.js`), requests via `XMLHttpRequest`.
+- Auth: gpsoauth ported to JS (`contents/code/providers/keep/gauth.js`), requests via `XMLHttpRequest`.
 - Storage: KWallet via D-Bus when enabled, widget config (0600) otherwise.
 - No native code, no `contents/bin/`, no Rust toolchain in the build image.
 

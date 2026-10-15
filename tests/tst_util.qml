@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../package/contents/code/util.js" as Util
+import "../package/contents/code/core/util.js" as Util
 
 TestCase {
     name: "Util"

@@ -48,18 +48,20 @@ service `org.kde.kwalletd6`, path `/modules/kwalletd6`, interface `org.kde.KWall
 `writePassword/readPassword/removeEntry(handle, "Keeplet", <email>, …, appId)`.
 
 Fallback when KWallet is disabled (`isEnabled() == false`, e.g. `Enabled=false` in `kwalletrc`):
-config key `secretFallback` (`plasma-org.kde.plasma.desktop-appletsrc`, mode 0600). The widget
-tells the user which storage is in use. A secret saved in the fallback is still read after
-KWallet gets enabled, and moves to KWallet on the next sign-in.
+the shared `LocalDb` (namespace `secrets`). It is a plain SQLite file with the user's default file mode,
+so it is weaker than the old per-instance config key — see
+[decisions/0002-accounts-and-storage.md](decisions/0002-accounts-and-storage.md). A secret saved in the
+fallback is still read after KWallet gets enabled, and moves to KWallet on the next sign-in.
+Secrets are keyed `<providerId>:<accountId>`; the pre-0.1 key (bare e-mail) is migrated on first start.
 
-Implementation: `contents/ui/SecretStore.qml` (storage), `contents/ui/Auth.qml` (sign in/out,
-auth token cache and refresh), `contents/code/gauth.js` (HTTP). `kwalletd6` reads `Enabled`
+Implementation: `ui/services/SecretStore.qml` (storage), `code/providers/keep/index.js` (sign-in and
+session with auth-token cache and refresh), `code/providers/keep/gauth.js` (HTTP). `kwalletd6` reads `Enabled`
 only at startup; after toggling it run `qdbus6 org.kde.kwalletd6 /modules/kwalletd6 reconfigure`.
 
 ## Errors
-- `BadAuthentication` on exchange → token wrong/expired/used; user gets a fresh `oauth_token`.
-- `BadAuthentication` on perform_oauth → master token revoked; widget signs out and says so.
-- Network errors (`AuthError.code == "Network"`) never sign the user out.
+- `BadAuthentication` on exchange → `badCredentials`: token wrong/expired/used; user gets a fresh `oauth_token`.
+- `BadAuthentication` on perform_oauth → `auth`: master token revoked; the account is flagged and the user is asked to sign in again.
+- Network errors (`network`) never affect the stored session; cached notes stay visible.
 
 D-Bus module gotchas (verified in `spike/wallet.qml`):
 - `SessionBus.asyncCall(msg, resolve, reject)` — both callbacks get the `DBusPendingReply`; use `reply.value` / `reply.error`.

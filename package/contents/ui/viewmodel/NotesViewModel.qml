@@ -1,171 +1,165 @@
 import QtQuick
-import "../../code/nodes.js" as Nodes
-import "../../code/keepapi.js" as KeepApi
+import "../../code/core/workspace.js" as Workspace
 
-// ViewModel for the notes list: owns the synced state, exposes what to show and
-// the commands to change it. No visual items and no user-facing strings: errors are
-// codes that the View translates. Depends only on `auth` (needs signedIn, email,
-// token(), invalidateToken()) and optional injected `cache` (load/save/remove).
+// ViewModel for the notes list across all accounts shown by this widget.
+// Owns per-account provider state, exposes the merged and filtered notes and the commands.
+// No visual items and no user-facing strings: errors are codes (View translates them).
+//
+// Dependencies: `accounts` (needs `sessions`, see AccountsViewModel) and optional `cache`
+// ({load(key), save(key, json), remove(key)}).
 QtObject {
     id: vm
 
-    // --- Dependencies
-    required property var auth
+    required property var accounts
     property var cache: null
-    // Replaces the HTTP transport (tests). Signature: (authToken, requestBody) => Promise.
-    property var transport: null
     property int syncInterval: 5 // minutes
 
     // --- Output
-    property var notes: []        // visible notes, pinned first
-    property var labels: []       // all labels, by name
-    property bool syncing: false
+    property var notes: []        // visible notes, pinned first (see Workspace.visibleNotes)
+    property var labels: []       // labels of all shown accounts, each with accountKey and key
+    property bool syncing: false  // any account is syncing
     property bool loaded: false   // there is something to show (cache or server)
-    property var lastSync: null   // Date or null
-    // "network" | "unauthorized" | "failed" | "" ; details for "failed" in errorDetail
-    property string error: ""
-    property string errorDetail: ""
+    property var lastSync: null   // Date of the latest successful sync, or null
+    // Per-account problems: [{accountKey, displayName, kind, detail}], kind is a ProviderError kind.
+    property var errors: []
+    // Convenience for single-account Views: the first problem, or "".
+    readonly property string error: errors.length > 0 ? errors[0].kind : ""
+    readonly property string errorDetail: errors.length > 0 ? errors[0].detail : ""
 
     // --- Input (filters set by the View)
     property string searchText: ""
-    property string labelId: ""
-    property string view: "notes" // "notes" | "archive" | "trash"
+    property string labelKey: ""      // "<accountKey>|<labelId>" or ""
+    property string accountFilter: "" // accountKey or "" for all
+    property string view: "notes"     // "notes" | "archive" | "trash"
 
     // --- Private
-    property var _state: Nodes.createState()
+    property var _accs: ({})          // accountKey -> {account, provider, session, state, syncing, lastSync, error}
     property var _all: []
-    property string _cacheKey: ""
-    readonly property bool _signedIn: auth.signedIn
+    readonly property var _sessions: accounts.sessions
 
     property Timer _timer: Timer {
         interval: Math.max(1, vm.syncInterval) * 60 * 1000
         repeat: true
-        running: vm._signedIn
+        running: vm._sessions.length > 0
         onTriggered: vm.refresh()
     }
 
     // --- Commands
     function refresh() {
-        if (syncing || !auth.signedIn)
-            return
-        syncing = true
-        error = ""
-        errorDetail = ""
-        _sync(false).then(function () {
-            lastSync = new Date()
-            loaded = true
-            if (cache && _cacheKey)
-                cache.save(_cacheKey, JSON.stringify(_state))
-            _rebuild()
-        }).catch(function (e) {
-            _fail(e)
-        }).then(function () {
-            syncing = false
-        })
+        Object.keys(_accs).forEach(function (key) { _refreshAccount(key) })
     }
 
     // --- Internals
-    function _sync(retried) {
-        return auth.token().then(function (token) {
-            return KeepApi.sync(token, _state, [], transport || undefined)
+    function _fail(e) {
+        if (e && e.kind)
+            return { kind: e.kind, detail: e.detail || "" }
+        return { kind: "failed", detail: String(e) }
+    }
+
+    function _refreshAccount(key) {
+        var a = _accs[key]
+        if (!a || a.syncing)
+            return
+        a.syncing = true
+        a.error = null
+        _updateStatus()
+        a.session.sync(a.state, []).then(function (state) {
+            a.state = state
+            a.lastSync = new Date()
+            a.loaded = true
+            if (cache)
+                cache.save(key, JSON.stringify(a.state))
         }).catch(function (e) {
-            if (e && e.kind === "Unauthorized" && !retried) {
-                auth.invalidateToken()
-                return _sync(true)
+            a.error = _fail(e)
+        }).then(function () {
+            a.syncing = false
+            if (_accs[key] === a) { // the account may have been removed meanwhile
+                _rebuild()
+                _updateStatus()
             }
-            throw e
         })
     }
 
-    function _fail(e) {
-        if (e && (e.kind === "Network" || e.code === "Network"))
-            error = "network"
-        else if (e && e.kind === "Unauthorized")
-            error = "unauthorized"
-        else if (e && e.code)
-            error = "" // sign-in problem: AuthViewModel reports it
-        else {
-            error = "failed"
-            errorDetail = String(e)
-        }
+    function _updateStatus() {
+        var keys = Object.keys(_accs)
+        syncing = keys.some(function (k) { return _accs[k].syncing })
+        loaded = keys.some(function (k) { return _accs[k].loaded })
+        var last = null
+        var errs = []
+        keys.forEach(function (k) {
+            var a = _accs[k]
+            if (a.lastSync && (!last || a.lastSync > last))
+                last = a.lastSync
+            if (a.error)
+                errs.push({ accountKey: k, displayName: a.account.displayName, kind: a.error.kind, detail: a.error.detail })
+        })
+        lastSync = last
+        errors = errs
     }
 
     function _rebuild() {
-        _all = Nodes.buildNotes(_state)
-        labels = Nodes.buildLabels(_state)
+        var parts = Object.keys(_accs).map(function (k) {
+            var a = _accs[k]
+            return Workspace.annotate(a.account, a.session.notes(a.state), a.session.labels(a.state))
+        })
+        var merged = Workspace.merge(parts)
+        _all = merged.notes
+        labels = merged.labels
         _applyFilter()
     }
 
-    function _matches(note, query) {
-        var hay = [note.title, note.text]
-        note.items.forEach(function (i) { hay.push(i.text) })
-        note.labels.forEach(function (l) { hay.push(l.name) })
-        return hay.join("\n").toLowerCase().indexOf(query) >= 0
-    }
-
     function _applyFilter() {
-        var query = searchText.trim().toLowerCase()
-        var out = _all.filter(function (n) {
-            if (view === "trash") {
-                if (!n.trashed)
-                    return false
-            } else if (n.trashed || n.archived !== (view === "archive")) {
-                return false
-            }
-            if (labelId && !n.labels.some(function (l) { return l.id === labelId }))
-                return false
-            return !query || _matches(n, query)
+        notes = Workspace.visibleNotes(_all, {
+            accountFilter: accountFilter, view: view, labelKey: labelKey,
+            query: searchText, accountCount: Object.keys(_accs).length
         })
-        // Keep's own order, pinned first.
-        notes = out.filter(function (n) { return n.pinned })
-                   .concat(out.filter(function (n) { return !n.pinned }))
     }
 
-    function _restoreFromCache() {
-        if (!cache || !_cacheKey)
-            return
-        var json = cache.load(_cacheKey)
-        if (!json)
-            return
-        try {
-            var s = JSON.parse(json)
-            if (s && typeof s.nodes === "object" && typeof s.labels === "object") {
-                _state = { version: s.version || "", nodes: s.nodes, labels: s.labels }
-                loaded = true
-                _rebuild()
+    // Adopts the session list: new accounts start from their cache and sync, removed ones are dropped.
+    function _adoptSessions() {
+        var next = {}
+        var fresh = []
+        _sessions.forEach(function (s) {
+            var key = s.account.key
+            var existing = _accs[key]
+            if (existing && existing.session === s.session) {
+                next[key] = existing
+                return
             }
-        } catch (e) {
-            console.warn("Keeplet: ignoring corrupt cache:", e)
-        }
+            var a = { account: s.account, provider: s.provider, session: s.session,
+                      state: s.session.createState(), syncing: false, lastSync: null, loaded: false, error: null }
+            if (cache) {
+                var json = cache.load(key)
+                if (json) {
+                    try {
+                        var restored = s.session.restoreState(JSON.parse(json))
+                        if (restored) {
+                            a.state = restored
+                            a.loaded = true
+                        }
+                    } catch (e) {
+                        console.warn("Keeplet: ignoring corrupt cache for", key, e)
+                    }
+                }
+            }
+            next[key] = a
+            fresh.push(key)
+        })
+        Object.keys(_accs).forEach(function (key) {
+            if (!next[key] && cache)
+                cache.remove(key)
+        })
+        _accs = next
+        _rebuild()
+        _updateStatus()
+        fresh.forEach(function (key) { _refreshAccount(key) })
     }
 
-    function _start() {
-        _cacheKey = auth.email
-        _restoreFromCache()
-        refresh()
-    }
-
-    function _reset() {
-        if (cache && _cacheKey)
-            cache.remove(_cacheKey)
-        _cacheKey = ""
-        _state = Nodes.createState()
-        _all = []
-        notes = []
-        labels = []
-        loaded = false
-        lastSync = null
-        error = ""
-        errorDetail = ""
-    }
-
-    on_SignedInChanged: _signedIn ? _start() : _reset()
+    on_SessionsChanged: _adoptSessions()
     onSearchTextChanged: _applyFilter()
-    onLabelIdChanged: _applyFilter()
+    onLabelKeyChanged: _applyFilter()
+    onAccountFilterChanged: _applyFilter()
     onViewChanged: _applyFilter()
 
-    Component.onCompleted: {
-        if (_signedIn)
-            _start()
-    }
+    Component.onCompleted: _adoptSessions()
 }

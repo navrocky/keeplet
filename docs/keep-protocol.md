@@ -51,9 +51,9 @@ New ids (gkeepapi `generate_id`): `"%x.%016x" % (ms_since_epoch, random_64bit)`.
 `GET media/<blob serverId>?s=0` (with the same auth) redirects to / returns the image URL.
 
 ## Implementation notes
-- `code/nodes.js` keeps raw server nodes in the state and derives notes on demand, so nodes sent
+- `code/providers/keep/nodes.js` keeps raw server nodes in the state and derives notes on demand, so nodes sent
   back later carry every field the server gave us.
-- Pagination: observed on a real account (276 nodes → `truncated=true`); `code/keepapi.js` follows
+- Pagination: observed on a real account (276 nodes → `truncated=true`); `code/providers/keep/keepapi.js` follows
   it. Dirty nodes are sent with the first page only (to re-verify at stage 3 when writing).
 - `forceFullResync` in a response clears the state and restarts from an empty `targetVersion`.
 - Text note body = single child `LIST_ITEM`; checklist items are ordered by descending

@@ -13,11 +13,18 @@
     </entry>
   </group>
 
-  <!-- Managed by the widget (Auth.qml), not by the settings dialog. -->
+  <group name="Accounts">
+    <!-- Which accounts this widget shows; empty means all known accounts. -->
+    <entry name="accountKeys" type="StringList">
+      <label>Account keys shown by this widget</label>
+      <default></default>
+    </entry>
+  </group>
+
+  <!-- Legacy single-account layout (stages 1-2). Read once by AccountsService.migrateLegacy and cleared. -->
   <group name="Account">
     <entry name="email" type="String"/>
     <entry name="androidId" type="String"/>
-    <!-- Master token, only when KWallet is disabled. -->
     <entry name="secretFallback" type="String"/>
   </group>
 </kcfg>
