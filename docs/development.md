@@ -60,3 +60,16 @@ directory and opens it with `plasmawindowed`. Re-run after each QML change.
 - `spike/run-auth.sh` — full auth chain + one `/changes` from pure QML. Prompts for e-mail and
   `oauth_token` (hidden), keeps state in `~/.cache/keeplet-spike/state.json` (0600). `--reset` to start over.
 - `spike/wallet.qml` — KWallet write/read/remove over D-Bus.
+
+## Stage C0 spike: write protocol
+`spike/run-write.sh` probes what the Keep API requires and returns when notes are **written**. It uses the
+session saved by `run-auth.sh` and **writes to the real account**: it creates two notes titled
+`keeplet write test (...)`, edits them (title, text, color, pin, archive, checklist items, an existing label
+on the test note only), trashes and deletes them. It never modifies a note it did not create and tries to
+clean up after a failed step. Output contains no tokens and is saved to `~/.cache/keeplet-spike/write-report.txt`.
+
+```sh
+spike/run-write.sh --dry-run   # prints the payload and the plan, sends nothing
+spike/run-write.sh             # asks for confirmation, then runs the scenario
+```
+The findings go into [keep-protocol.md](keep-protocol.md) before the write path (`mutations.js`) is built.
