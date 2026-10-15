@@ -68,7 +68,7 @@ directory and opens it with `plasmawindowed`. Re-run after each QML change.
 ## Stage C0 spike: write protocol
 `spike/run-write.sh` probes what the Keep API requires and returns when notes are **written**. It uses the
 session saved by `run-auth.sh` and **writes to the real account**: it creates two notes titled
-`keeplet write test (...)`, edits them (title, text, color, pin, archive, checklist items, an existing label
+`keeplet write test (...)`, edits them (title, text, color, pin, archive, checklist items, the note's order, an existing label
 on the test note only), trashes and deletes them. It never modifies a note it did not create and tries to
 clean up after a failed step. Output contains no tokens and is saved to `~/.cache/keeplet-spike/write-report.txt`.
 

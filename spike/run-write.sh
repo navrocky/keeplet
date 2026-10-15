@@ -22,7 +22,7 @@ else
     cat <<'EOF'
 This writes to your REAL Google Keep account. It will:
   - create two notes titled "keeplet write test (note)" and "keeplet write test (list)",
-  - edit them (title, text, color, pin, archive, checklist items, one existing label on the test note only),
+  - edit them (title, text, color, pin, archive, checklist items, their order, one existing label on the test note only),
   - move them to the trash and delete them for good.
 It never modifies a note it did not create. If a step fails it tries to delete what it created;
 anything left over has a title starting with "keeplet write test".

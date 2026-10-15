@@ -161,6 +161,15 @@ Item {
                             [edit(item3.id, function (c) { c.superListItemId = item2.id })])
             })
         }])
+        out.push(["reorder", function () {
+            // Manual order: notes are shown by descending sortValue. Move the note above the list, then below it.
+            var listSort = Number(state.nodes[list.id].sortValue)
+            return push("4e. move the note above the list (sortValue " + (listSort + 1000000) + ")",
+                        [edit(note.id, function (c) { c.sortValue = String(listSort + 1000000) })]).then(function () {
+                return push("4f. move the note below the list (sortValue " + (listSort - 1000000) + ")",
+                            [edit(note.id, function (c) { c.sortValue = String(listSort - 1000000) })])
+            })
+        }])
         out.push(["label on the test note", function () {
             var labels = Object.keys(state.labels)
             if (labels.length === 0) {
