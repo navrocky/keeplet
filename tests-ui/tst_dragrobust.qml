@@ -272,5 +272,59 @@ Item {
             verify(g.width > 40)
             putDown(5, 5)
         }
+
+        // --- manual order
+
+        function idsInList() {
+            return notes.notes.map(function (n) { return n.id }).join()
+        }
+
+        function test_aCardDroppedBetweenOthersTakesThatPlace() {
+            verify(notes.reorderEnabled, "one account, no search: manual order is on")
+            compare(idsInList().indexOf("n0,n1,n2,n3"), 0)
+            var from = pickUp("n3")
+            // Hold it just inside the top of n1: the gap opens in front of n1.
+            var target = card("n1").mapToItem(win, card("n1").width / 2, 6)
+            mouseMove(win, target.x, target.y, 0, Qt.LeftButton)
+            mouseMove(win, target.x + 1, target.y + 1, 0, Qt.LeftButton)
+            tryVerify(function () { return card("n1").parent.gap > 10 }, 2000, "a gap opens in front of n1")
+            mouseRelease(win, target.x + 1, target.y + 1)
+            tryVerify(function () { return !dragLayer().active })
+            tryVerify(function () { return idsInList().indexOf("n0,n3,n1,n2") === 0 }, 2000, "order: " + idsInList())
+            // The gap is gone again and the order is what the provider holds.
+            tryVerify(function () { return card("n1").parent.gap < 1 }, 2000)
+            var orders = notes.notes.slice(0, 5).map(function (n) { return n.order })
+            for (var i = 1; i < orders.length; i++)
+                verify(orders[i - 1] > orders[i], "descending: " + orders.join())
+            verify(notes.undoLast())
+            compare(idsInList().indexOf("n0,n1,n2,n3"), 0)
+        }
+
+        function test_theGapAtTheEndOfTheListOpensInTheFooter() {
+            var l = list()
+            var from = pickUp("n1")
+            l.contentY = l.originY + Math.max(0, l.contentHeight - l.height)        // show the end
+            wait(100)
+            var top = l.mapToItem(win, 0, 0)
+            mouseMove(win, top.x + l.width / 2, top.y + l.height - 3, 0, Qt.LeftButton)
+            wait(1200)                                                              // autoscroll to the bottom
+            verify(win.screen.insertBefore >= 0, "an insertion point exists near the bottom")
+            putDown(5, 5)
+            tryVerify(function () { return win.screen.insertBefore === -1 })
+            l.contentY = l.originY
+        }
+
+        function test_noGapWhenSeveralAccountsAreMixed() {
+            // Simulated by a search: the list is filtered, so positions are not meaningful.
+            notes.searchText = "Note"
+            verify(!notes.reorderEnabled)
+            var from = pickUp("n1")
+            var target = card("n3").mapToItem(win, card("n3").width / 2, 6)
+            mouseMove(win, target.x, target.y, 0, Qt.LeftButton)
+            wait(150)
+            compare(win.screen.insertBefore, -1)
+            putDown(target.x, target.y)
+            notes.searchText = ""
+        }
     }
 }
