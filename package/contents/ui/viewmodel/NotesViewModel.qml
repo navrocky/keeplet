@@ -64,7 +64,7 @@ QtObject {
     // --- Private
     property var draft: null          // a new note that has no id yet
     property string _draftTarget: ""  // key the draft got once it was saved
-    property var _undo: null          // snapshot to restore for lastAction
+    property var _undo: null          // function that reverts lastAction, returns whether it did
     property var _accs: ({})          // accountKey -> {account, provider, session, state, syncing, lastSync, error}
     property var _all: []
     readonly property var _sessions: accounts.sessions
@@ -227,7 +227,8 @@ QtObject {
     }
 
     function _remember(kind, note, label) {
-        _undo = _snapshotOf(note)
+        var snapshot = _snapshotOf(note)
+        _undo = function () { return saveNote(snapshot) !== "" }
         lastAction = { kind: kind, noteKey: note.key, label: label || "" }
     }
 
@@ -276,13 +277,127 @@ QtObject {
     function undoLast() {
         if (!lastAction || !_undo)
             return false
-        var snapshot = _undo
+        var revert = _undo
         dismissAction()
-        return saveNote(snapshot) !== ""
+        return revert()
     }
     function dismissAction() {
         lastAction = null
         _undo = null
+    }
+
+    // --- Manual order
+    // The list can be put in a manual order when it shows one account (several are sorted by update time),
+    // is not the trash, is not filtered by a search, and the provider can reorder.
+    readonly property bool reorderEnabled: _canReorderHere()
+
+    function _scopeAccountKey() {
+        if (accountFilter)
+            return accountFilter
+        var keys = Object.keys(_accs)
+        return keys.length === 1 ? keys[0] : ""
+    }
+
+    function _canReorderHere() {
+        if (searchText.trim() !== "" || selected === "trash")
+            return false
+        var key = _scopeAccountKey()
+        if (!key || !_accs[key])
+            return false
+        var a = _accs[key]
+        return !!a.provider.capabilities.reorder && canWrite(key) && typeof a.session.reorder === "function"
+    }
+
+    function _pinnedCount(list) {
+        var n = 0
+        while (n < list.length && list[n].pinned)
+            n++
+        return n
+    }
+
+    // The visible list without the note: positions are counted in it ("insert before this index").
+    function _without(noteKey) {
+        return notes.filter(function (n) { return n.key !== noteKey })
+    }
+
+    // Whether the note may be inserted at `index` of the list without it. Pinned notes stay among the
+    // pinned ones, the others among the rest (pinning is changed with the pin button).
+    function canMoveTo(noteKey, index) {
+        if (!reorderEnabled)
+            return false
+        var note = null
+        for (var i = 0; i < notes.length; i++) {
+            if (notes[i].key === noteKey)
+                note = notes[i]
+        }
+        if (!note || note.accountKey !== _scopeAccountKey())
+            return false
+        var list = _without(noteKey)
+        var pinned = _pinnedCount(list)
+        var from = note.pinned ? 0 : pinned
+        var to = note.pinned ? pinned : list.length
+        return index >= from && index <= to
+    }
+
+    // The orders to assign so that `note` sits at `index` of `list` (the visible list without it), as
+    // [{note, order}]; empty when it already sits there. Neighbours are taken from the same section.
+    function _orderPlan(note, list, index) {
+        var STEP = 1000000
+        var above = index > 0 ? list[index - 1] : null
+        var below = index < list.length ? list[index] : null
+        if (above && above.pinned !== note.pinned)
+            above = null
+        if (below && below.pinned !== note.pinned)
+            below = null
+        if (!above && !below)
+            return []
+        if ((!above || note.order < above.order) && (!below || note.order > below.order))
+            return []                                             // already between its new neighbours
+        var value = null
+        if (above && below) {
+            var mid = Math.floor((above.order + below.order) / 2)
+            if (mid < above.order && mid > below.order)
+                value = mid
+        } else if (above) {
+            value = above.order - STEP
+        } else {
+            value = below.order + STEP
+        }
+        if (value !== null)
+            return [{ note: note, order: value }]
+        // No room between the neighbours: give the whole section fresh, evenly spaced orders.
+        var section = list.filter(function (n) { return n.pinned === note.pinned })
+        var position = index - (note.pinned ? 0 : _pinnedCount(list))
+        section.splice(position, 0, note)
+        var top = Math.max.apply(null, section.map(function (n) { return n.order })) + STEP
+        var plan = []
+        section.forEach(function (n, k) {
+            var order = top - k * STEP
+            if (n.order !== order)
+                plan.push({ note: n, order: order })
+        })
+        return plan
+    }
+
+    // Puts a note at `index` of the visible list without it. Undoable. Returns whether anything changed.
+    function moveNote(noteKey, index) {
+        if (!canMoveTo(noteKey, index))
+            return false
+        var note = noteByKey(noteKey)
+        var plan = _orderPlan(note, _without(noteKey), index)
+        if (plan.length === 0)
+            return false
+        var a = _accs[note.accountKey]
+        var previous = plan.map(function (p) { return { id: p.note.id, order: p.note.order } })
+        plan.forEach(function (p) { a.session.reorder(a.state, p.note.id, p.order) })
+        _undo = function () {
+            previous.forEach(function (p) { a.session.reorder(a.state, p.id, p.order) })
+            _afterWrite(a)
+            return true
+        }
+        lastAction = { kind: "moved", noteKey: noteKey, label: "" }
+        _afterWrite(a)
+        return true
     }
 
     // --- Drag & drop of a note onto a rail group

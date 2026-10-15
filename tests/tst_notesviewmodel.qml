@@ -713,4 +713,107 @@ TestCase {
         verify(!ro.vm.canCreate)
         verify(!make([]).vm.canCreate)
     }
+
+    // --- manual order of notes
+
+    function orderedData(orders) {
+        var notes = [{ id: "P", title: "Pinned", pinned: true, order: 500 }]
+        orders.forEach(function (o, i) { notes.push({ id: "n" + o, title: "N" + o, order: o }) })
+        return { labels: [], notes: notes }
+    }
+    function visibleIds(vm) { return vm.notes.map(function (n) { return n.id }).join() }
+
+    function test_reorderIsOnlyEnabledWhereItMakesSense() {
+        var c = make([entry(keepAcc, { data: orderedData([40, 30]) })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.reorderEnabled)
+        c.vm.searchText = "N"
+        verify(!c.vm.reorderEnabled)                   // a filtered list has no meaningful positions
+        c.vm.searchText = ""
+        c.vm.select("trash")
+        verify(!c.vm.reorderEnabled)
+        c.vm.select("all")
+
+        var two = make([entry(keepAcc, { data: orderedData([40, 30]) }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return two.vm.notes.length > 3 })
+        verify(!two.vm.reorderEnabled)                 // several accounts are sorted by update time
+        two.vm.selectAccount("fake:work")
+        verify(two.vm.reorderEnabled)
+    }
+
+    function test_moveBetweenNeighboursTakesTheMiddleOrder() {
+        var opts = { data: orderedData([40, 30, 20, 10]) }
+        var c = make([entry(keepAcc, opts)])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        compare(visibleIds(c.vm), "P,n40,n30,n20,n10")
+        // Insert n10 between n40 and n30: index 2 of the list without it [P, n40, n30, n20].
+        verify(c.vm.canMoveTo("fake:me@x/n10", 2))
+        verify(c.vm.moveNote("fake:me@x/n10", 2))
+        compare(visibleIds(c.vm), "P,n40,n10,n30,n20")
+        compare(c.vm.noteByKey("fake:me@x/n10").order, 35)
+        compare(c.vm.unsynced, 1)
+        tryVerify(function () { return c.vm.unsynced === 0 })
+        compare(opts.data.notes.filter(function (n) { return n.id === "n10" })[0].order, 35)
+    }
+
+    function test_moveToTheEdgesOfTheSection() {
+        var c = make([entry(keepAcc, { data: orderedData([40, 30, 20, 10]) })])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        verify(c.vm.moveNote("fake:me@x/n20", 1))      // first among the unpinned
+        compare(visibleIds(c.vm), "P,n20,n40,n30,n10")
+        verify(c.vm.noteByKey("fake:me@x/n20").order > 40)
+        verify(c.vm.moveNote("fake:me@x/n40", 4))      // last (list without it has 4 items)
+        compare(visibleIds(c.vm), "P,n20,n30,n10,n40")
+        verify(c.vm.noteByKey("fake:me@x/n40").order < 10)
+    }
+
+    function test_pinnedAndOthersStayInTheirSections() {
+        var c = make([entry(keepAcc, { data: orderedData([40, 30]) })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(!c.vm.canMoveTo("fake:me@x/n40", 0))    // above the pinned note
+        verify(c.vm.canMoveTo("fake:me@x/n40", 1))
+        verify(!c.vm.canMoveTo("fake:me@x/P", 1))      // below an unpinned note
+        verify(c.vm.canMoveTo("fake:me@x/P", 0))
+        verify(!c.vm.moveNote("fake:me@x/n40", 0))
+    }
+
+    function test_movingToTheSamePlaceChangesNothing() {
+        var c = make([entry(keepAcc, { data: orderedData([40, 30, 20]) })])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        verify(!c.vm.moveNote("fake:me@x/n30", 2))     // already between n40 and n20
+        compare(c.vm.unsynced, 0)
+        verify(c.vm.lastAction === null)
+    }
+
+    function test_noRoomBetweenNeighboursRenumbersTheSection() {
+        var c = make([entry(keepAcc, { data: orderedData([11, 10, 9, 8]) })])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        verify(c.vm.moveNote("fake:me@x/n8", 2))       // between 11 and 10: no integer in between
+        compare(visibleIds(c.vm), "P,n11,n8,n10,n9")
+        var orders = c.vm.notes.filter(function (n) { return !n.pinned }).map(function (n) { return n.order })
+        for (var i = 1; i < orders.length; i++)
+            verify(orders[i - 1] > orders[i], "strictly descending: " + orders.join())
+        verify(c.vm.unsynced > 1)                      // several notes were renumbered
+    }
+
+    function test_moveCanBeUndone() {
+        var c = make([entry(keepAcc, { data: orderedData([40, 30, 20]) })])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        verify(c.vm.moveNote("fake:me@x/n20", 1))
+        compare(visibleIds(c.vm), "P,n20,n40,n30")
+        compare(c.vm.lastAction.kind, "moved")
+        verify(c.vm.undoLast())
+        compare(visibleIds(c.vm), "P,n40,n30,n20")
+        verify(c.vm.lastAction === null)
+    }
+
+    function test_editingANoteKeepsItsPosition() {
+        var c = make([entry(keepAcc, { data: orderedData([40, 30, 20]) })])
+        tryVerify(function () { return c.vm.loaded && !c.vm.syncing })
+        c.vm.moveNote("fake:me@x/n20", 1)
+        var note = c.vm.noteByKey("fake:me@x/n20")
+        note.title = "Edited"
+        c.vm.saveNote(note)
+        compare(visibleIds(c.vm), "P,n20,n40,n30")      // the edit did not undo the move
+    }
 }
