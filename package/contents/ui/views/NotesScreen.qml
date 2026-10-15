@@ -401,9 +401,15 @@ ColumnLayout {
             note = n
             open()
         }
-        contentItem: PlasmaComponents.Label {
-            wrapMode: Text.Wrap
-            text: i18n("This note will be deleted permanently and can't be restored.")
+        // The label gets the dialog's (fixed) width first, so its height can't feed back into the width.
+        contentItem: Item {
+            implicitHeight: deleteMessage.implicitHeight
+            PlasmaComponents.Label {
+                id: deleteMessage
+                width: parent.width
+                wrapMode: Text.Wrap
+                text: i18n("This note will be deleted permanently and can't be restored.")
+            }
         }
         onAccepted: view.vm.deleteForever(note.key)
     }
@@ -416,9 +422,15 @@ ColumnLayout {
         title: i18n("Empty trash?")
         width: Math.min(view.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 20)
         standardButtons: QQC2.Dialog.Yes | QQC2.Dialog.No
-        contentItem: PlasmaComponents.Label {
-            wrapMode: Text.Wrap
-            text: i18n("All notes in the trash will be deleted permanently and can't be restored.")
+        // The label gets the dialog's (fixed) width first, so its height can't feed back into the width.
+        contentItem: Item {
+            implicitHeight: emptyMessage.implicitHeight
+            PlasmaComponents.Label {
+                id: emptyMessage
+                width: parent.width
+                wrapMode: Text.Wrap
+                text: i18n("All notes in the trash will be deleted permanently and can't be restored.")
+            }
         }
         onAccepted: view.vm.emptyTrash()
     }
