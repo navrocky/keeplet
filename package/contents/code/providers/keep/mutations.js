@@ -292,6 +292,21 @@ function commitNote(state, snap, ctx) {
     return { id: snap.id, nodes: out.concat(children) }
 }
 
+// The note moved to `order` in the account's own sequence (items are shown by descending sortValue).
+// Returns the changed node or null when nothing changes. The edit time is bumped, "user edited" is not.
+function setOrder(state, noteId, order, ctx) {
+    ctx = ctx || defaultContext()
+    var raw = state.nodes[noteId]
+    if (!raw || Nodes.isDeleted(raw) || raw.parentId !== "root")
+        return null
+    if (_num(raw.sortValue) === Number(order))
+        return null
+    var top = _clone(raw)
+    top.sortValue = String(order)
+    top.timestamps.updated = ctx.now()
+    return top
+}
+
 // Nodes that delete a note for good: the note and all its items.
 function deleteNote(state, noteId, ctx) {
     ctx = ctx || defaultContext()
@@ -311,6 +326,13 @@ function commit(state, snap, ctx) {
     var result = commitNote(state, snap, ctx)
     result.nodes.forEach(function (n) { Nodes.markDirty(state, n) })
     return result.id
+}
+
+function reorder(state, noteId, order, ctx) {
+    var node = setOrder(state, noteId, order, ctx)
+    if (node)
+        Nodes.markDirty(state, node)
+    return !!node
 }
 
 function remove(state, noteId, ctx) {

@@ -313,4 +313,33 @@ TestCase {
         compare(again.parentId, "l1")
         compare(r.nodes.filter(function (n) { return n.id === "l1.b" }).length, 0)   // the tombstone is left alone
     }
+
+    // --- manual order of notes
+
+    function test_setOrderChangesOnlyTheSortValueOfTheNote() {
+        var s = stateWith()
+        var n = Mut.setOrder(s, "n1", 999, ctx())
+        compare(n.sortValue, "999")
+        compare(n.title, "Shopping")
+        compare(n.serverId, "S-n1")
+        verify(n.timestamps.updated !== old)
+        compare(n.timestamps.userEdited, old)              // moving a note is not editing it
+        compare(s.nodes.n1.sortValue, "300")               // the state is untouched until reorder()
+    }
+
+    function test_setOrderToTheSameValueOrOfAnItemDoesNothing() {
+        var s = stateWith()
+        verify(Mut.setOrder(s, "n1", 300, ctx()) === null)
+        verify(Mut.setOrder(s, "l1.a", 5, ctx()) === null)   // items are not notes
+        verify(Mut.setOrder(s, "missing", 5, ctx()) === null)
+    }
+
+    function test_reorderQueuesTheNodeAndMovesTheNote() {
+        var s = stateWith()
+        verify(Mut.reorder(s, "n1", 50, ctx()))
+        compare(Nodes.pendingCount(s), 1)
+        var order = Nodes.buildNotes(s).map(function (n) { return n.id })
+        compare(order.join(), "l1,n1")                      // l1 (200) is now above n1 (50)
+        verify(!Mut.reorder(s, "n1", 50, ctx()))            // already there
+    }
 }
