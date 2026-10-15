@@ -9,6 +9,7 @@ QQC2.StackView {
 
     required property var vm          // NotesViewModel
     required property var accountsVm  // AccountsViewModel
+    required property var editor      // NoteEditorViewModel
 
     readonly property bool noteOpen: vm.currentNoteKey !== ""
     readonly property int duration: Kirigami.Units.longDuration
@@ -30,7 +31,7 @@ QQC2.StackView {
 
     Component {
         id: noteScreen
-        NoteScreen { vm: stack.vm }
+        NoteScreen { vm: stack.vm; editor: stack.editor }
     }
 
     // Forward: new screen slides in from the right while the list fades away; Back: the reverse.

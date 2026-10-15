@@ -38,6 +38,11 @@ PlasmoidItem {
         onRailCollapsedChanged: Plasmoid.configuration.railCollapsed = railCollapsed
     }
 
+    NoteEditorViewModel {
+        id: editorVm
+        notes: notesVm
+    }
+
     // Accounts created by the single-account layout of earlier versions.
     Component.onCompleted: {
         accountsService.migrateLegacy(Plasmoid.configuration).then(function (migrated) {
@@ -98,7 +103,7 @@ PlasmoidItem {
 
         Component {
             id: notesRoot
-            NotesRoot { vm: notesVm; accountsVm: accountsVm }
+            NotesRoot { vm: notesVm; accountsVm: accountsVm; editor: editorVm }
         }
     }
 }
