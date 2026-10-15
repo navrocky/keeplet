@@ -177,6 +177,12 @@ function buildNotes(state) {
     })
 }
 
+// One top-level note by id (any state: archived, trashed), or null.
+function buildNote(state, id) {
+    var found = buildNotes(state).filter(function (n) { return n.id === id })
+    return found.length > 0 ? found[0] : null
+}
+
 function buildLabels(state) {
     return Object.keys(state.labels).map(function (id) {
         return { id: id, name: state.labels[id].name }
