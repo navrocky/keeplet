@@ -114,6 +114,60 @@ Rectangle {
             }
 
             PlasmaComponents.ToolButton {
+                id: accountButton
+                // Only for a new note that is not stored yet and can go to several accounts.
+                visible: screen.editor.accountChoices.length > 1
+                icon.name: "user"
+                onClicked: accountMenu.popup(accountButton, 0, accountButton.height)
+                PlasmaComponents.ToolTip.text: i18n("Account")
+                PlasmaComponents.ToolTip.visible: hovered
+
+                QQC2.Menu {
+                    id: accountMenu
+
+                    Instantiator {
+                        model: screen.editor.accountChoices
+                        delegate: QQC2.MenuItem {
+                            required property var modelData
+                            text: modelData.name
+                            checkable: true
+                            checked: screen.note !== null && screen.note.accountKey === modelData.key
+                            onTriggered: screen.editor.setAccount(modelData.key)
+                        }
+                        onObjectAdded: (index, object) => accountMenu.addItem(object)
+                        onObjectRemoved: (index, object) => accountMenu.removeItem(object)
+                    }
+                }
+            }
+
+            PlasmaComponents.ToolButton {
+                id: labelsButton
+                visible: screen.editor.labelChoices.length > 0
+                enabled: screen.editor.editable
+                icon.name: "tag"
+                onClicked: labelsMenu.popup(labelsButton, 0, labelsButton.height)
+                PlasmaComponents.ToolTip.text: i18n("Labels")
+                PlasmaComponents.ToolTip.visible: hovered
+
+                QQC2.Menu {
+                    id: labelsMenu
+
+                    Instantiator {
+                        model: screen.editor.labelChoices
+                        delegate: QQC2.MenuItem {
+                            required property var modelData
+                            text: modelData.name
+                            checkable: true
+                            checked: modelData.on
+                            onTriggered: screen.editor.toggleLabel(modelData.id)
+                        }
+                        onObjectAdded: (index, object) => labelsMenu.addItem(object)
+                        onObjectRemoved: (index, object) => labelsMenu.removeItem(object)
+                    }
+                }
+            }
+
+            PlasmaComponents.ToolButton {
                 id: colorButton
                 visible: screen.editor.colors.length > 0
                 enabled: screen.editor.editable
