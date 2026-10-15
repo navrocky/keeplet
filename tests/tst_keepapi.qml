@@ -106,4 +106,38 @@ TestCase {
         tryVerify(function () { return err !== null })
         compare(err.kind, "Unauthorized")
     }
+
+    function test_sync_skipOptionKeepsLocalNodes() {
+        var s = Nodes.createState()
+        s.nodes = { a: { id: "a", parentId: "root", type: "NOTE", title: "Local", timestamps: {} } }
+        var done = false
+        KeepApi.sync("t", s, [], function () {
+            return Promise.resolve({ toVersion: "v1", truncated: false, nodes: [
+                { id: "a", parentId: "root", type: "NOTE", title: "Server", timestamps: {} },
+                { id: "b", parentId: "root", type: "NOTE", title: "Other", timestamps: {} }
+            ] })
+        }, { skip: function (id) { return id === "a" } }).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(s.nodes.a.title, "Local")
+        compare(s.nodes.b.title, "Other")
+    }
+
+    function test_sync_fullResyncKeepsAndResendsPendingEdits() {
+        var s = Nodes.createState()
+        s.version = "old"
+        var pending = { id: "mine", parentId: "root", type: "NOTE", title: "Unsent", timestamps: {} }
+        s.nodes = { mine: pending }
+        s.dirty = { mine: { node: pending, rev: 1 } }
+        var log = []
+        var done = false
+        KeepApi.sync("t", s, [pending], fakeServer([
+            { forceFullResync: true },
+            page("fresh", false, ["a"])
+        ], log)).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(log[1].body.nodes.length, 1)
+        compare(log[1].body.nodes[0].id, "mine")
+        verify("mine" in s.nodes)
+        verify("a" in s.nodes)
+    }
 }

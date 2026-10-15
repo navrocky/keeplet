@@ -77,8 +77,11 @@ function changes(authToken, body) {
 
 // Pulls (and pushes dirtyNodes with the first page) until the server says nothing is truncated.
 // Mutates state. Resolves with state. send(authToken, body) is injectable for tests.
-function sync(authToken, state, dirtyNodes, send) {
+// options.skip(id) keeps the local version of a node (see nodes.applyChanges).
+// A forced full resync drops the cached server data but keeps pending local edits and sends them again.
+function sync(authToken, state, dirtyNodes, send, options) {
     send = send || changes
+    var applyOptions = options && options.skip ? { skip: options.skip } : undefined
     var sessionId = newSessionId()
     var pages = 0
 
@@ -92,9 +95,13 @@ function sync(authToken, state, dirtyNodes, send) {
                 state.version = ""
                 state.nodes = {}
                 state.labels = {}
-                return step([], true)
+                var resend = Object.keys(state.dirty || {}).map(function (id) {
+                    state.nodes[id] = state.dirty[id].node
+                    return state.dirty[id].node
+                })
+                return step(resend, true)
             }
-            Nodes.applyChanges(state, resp)
+            Nodes.applyChanges(state, resp, applyOptions)
             if (resp.truncated)
                 return step([], resynced)
             return state
