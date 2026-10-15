@@ -39,7 +39,8 @@ Item {
     // --- drag of a note onto a group: the ghost follows the pointer, groups accept the drop
     function beginDrag(note, card) {
         var p = card.mapToItem(view, card.width / 2, card.height / 2)
-        dragLayer.begin(note.key, note.title !== "" ? note.title : i18n("Untitled note"), p.x, p.y)
+        dragLayer.begin(note.key, note.title !== "" ? note.title : i18n("Untitled note"),
+                        p.x, p.y, card.width, card.height, card.color)
     }
     function moveDrag(scenePosition) {
         var p = view.mapFromItem(null, scenePosition.x, scenePosition.y)
@@ -47,6 +48,34 @@ Item {
     }
     function endDrag() {
         dragLayer.drop()
+    }
+
+    // --- scrolling the list while a card is held near its top or bottom edge
+    readonly property real scrollZone: Kirigami.Units.gridUnit * 2.5
+    readonly property real scrollSpeed: Kirigami.Units.gridUnit * 0.8   // px per tick at the very edge
+
+    function autoScrollStep() {
+        if (!dragLayer.active)
+            return
+        var p = list.mapFromItem(dragLayer, dragLayer.pointer.x, dragLayer.pointer.y)
+        var h = list.height
+        var v = 0
+        if (p.y < scrollZone)
+            v = -Math.min(1, (scrollZone - p.y) / scrollZone)       // above the list counts as the very edge
+        else if (p.y > h - scrollZone)
+            v = Math.min(1, (p.y - (h - scrollZone)) / scrollZone)
+        if (v === 0)
+            return
+        var minY = list.originY
+        var maxY = list.originY + Math.max(0, list.contentHeight - h)
+        list.contentY = Math.max(minY, Math.min(maxY, list.contentY + v * scrollSpeed))
+    }
+
+    Timer {
+        interval: 16
+        repeat: true
+        running: dragLayer.active
+        onTriggered: view.autoScrollStep()
     }
 
     // A drag must not outlive the situation it started in.
@@ -222,6 +251,7 @@ Item {
                 visible: view.vm.railVisible
                 vm: view.vm
                 multiAccount: view.accountsVm.multiAccount
+                dragNoteKey: dragLayer.active ? dragLayer.noteKey : ""
             }
 
             PlasmaComponents.ScrollView {
@@ -234,6 +264,60 @@ Item {
                     spacing: Kirigami.Units.smallSpacing
                     clip: true
 
+                    // Pointer handling lives here, on the list, because it must outlive the cards: a delegate is
+                    // destroyed when it scrolls out of view, and a drag has to survive that.
+                    // (Handlers declared in a ListView work in content coordinates, as ListView.itemAt expects.)
+                    TapHandler {
+                        acceptedButtons: Qt.LeftButton
+                        cursorShape: Qt.PointingHandCursor
+                        onTapped: eventPoint => {
+                            var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
+                            if (slot)
+                                view.vm.openNote(slot.modelData.key)
+                        }
+                    }
+
+                    TapHandler {
+                        acceptedButtons: Qt.RightButton
+                        onTapped: eventPoint => {
+                            var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
+                            if (slot)
+                                noteMenu.openFor(slot.modelData, list.contentItem,
+                                                 eventPoint.position)
+                        }
+                    }
+
+                    // Only a horizontal move starts a drag (towards the group rail); vertical drags scroll.
+                    DragHandler {
+                        id: noteDrag
+                        acceptedButtons: Qt.LeftButton
+                        target: null
+                        xAxis.enabled: true
+                        yAxis.enabled: false
+                        dragThreshold: Kirigami.Units.smallSpacing * 2
+                        onActiveChanged: {
+                            if (active) {
+                                var slot = list.itemAt(centroid.pressPosition.x, centroid.pressPosition.y)
+                                if (slot)
+                                    view.beginDrag(slot.modelData, slot.cardItem)
+                            } else {
+                                view.endDrag()
+                            }
+                        }
+                        onCentroidChanged: {
+                            if (active)
+                                view.moveDrag(centroid.scenePosition)
+                        }
+                    }
+
+                    // Cards slide to their new places when notes appear, vanish or the order changes.
+                    displaced: Transition {
+                        NumberAnimation { properties: "y"; duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+                    }
+                    remove: Transition {
+                        NumberAnimation { property: "opacity"; to: 0; duration: Kirigami.Units.shortDuration }
+                    }
+
                     // A slot (whose height may change) around the card: the card keeps its size and its pointer
                     // handlers while the slot collapses during a drag.
                     delegate: Item {
@@ -242,23 +326,23 @@ Item {
                         readonly property bool dragged: dragLayer.active && dragLayer.noteKey === modelData.key
 
                         width: list.width
-                        height: card.implicitHeight
+                        // While its card is carried the slot closes and the other cards slide together;
+                        // when the card comes back (or is dropped elsewhere) the slot opens again.
+                        height: dragged ? 0 : card.implicitHeight
+                        Behavior on height {
+                            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+                        }
+
+                        readonly property alias cardItem: card
 
                         NoteCard {
                             id: card
                             width: slot.width
+                            opacity: slot.dragged ? 0 : 1
+                            Behavior on opacity {
+                                NumberAnimation { duration: Kirigami.Units.shortDuration }
+                            }
                             note: slot.modelData
-                            onClicked: view.vm.openNote(slot.modelData.key)
-                            onContextRequested: position => noteMenu.openFor(slot.modelData, card, position)
-                            onDragStarted: view.beginDrag(slot.modelData, card)
-                            onDragMoved: scenePosition => view.moveDrag(scenePosition)
-                            onDragFinished: view.endDrag()
-                        }
-
-                        // The card is going away (note removed, list rebuilt): don't leave its ghost behind.
-                        Component.onDestruction: {
-                            if (dragged)
-                                dragLayer.cancel()
                         }
                     }
 
