@@ -37,17 +37,74 @@ Item {
     }
 
     // --- drag of a note onto a group: the ghost follows the pointer, groups accept the drop
-    function beginDrag(note, card) {
-        var p = card.mapToItem(view, card.width / 2, card.height / 2)
+    function beginDrag(note, card, scenePosition) {
+        var origin = card.mapToItem(view, 0, 0)
+        var pointer = view.mapFromItem(null, scenePosition.x, scenePosition.y)
+        dragHeight = card.height
         dragLayer.begin(note.key, note.title !== "" ? note.title : i18n("Untitled note"),
-                        p.x, p.y, card.width, card.height, card.color)
+                        pointer.x, pointer.y, origin.x, origin.y, card.width, card.height, card.color)
     }
     function moveDrag(scenePosition) {
         var p = view.mapFromItem(null, scenePosition.x, scenePosition.y)
         dragLayer.moveTo(p.x, p.y)
+        updateInsertion()
     }
     function endDrag() {
-        dragLayer.drop()
+        var key = dragLayer.noteKey
+        var index = insertIndex
+        var action = dragLayer.drop()          // a group in the rail may take the note
+        insertBefore = -1
+        insertIndex = -1
+        // Not taken by a group: if it was held over the list, put it there (manual order).
+        if (action === Qt.IgnoreAction && index >= 0 && key !== "")
+            view.vm.moveNote(key, index)
+    }
+
+    // --- manual order: where the carried note would be inserted
+    property int insertBefore: -1     // full list index in front of which the gap opens (count = at the end)
+    property int insertIndex: -1      // the same place as an index of the list without the carried note
+    property real dragHeight: 0       // height of the carried card = size of the gap
+
+    function updateInsertion() {
+        var before = -1
+        var index = -1
+        if (dragLayer.active && view.vm.reorderEnabled) {
+            var p = list.mapFromItem(dragLayer, dragLayer.pointer.x, dragLayer.pointer.y)
+            var inside = p.x >= 0 && p.x <= list.width && p.y >= -scrollZone && p.y <= list.height + scrollZone
+            if (inside) {
+                var c = list.contentItem.mapFromItem(dragLayer, dragLayer.pointer.x, dragLayer.pointer.y)
+                var notes = view.vm.notes
+                var carried = -1
+                for (var i = 0; i < notes.length; i++) {
+                    if (notes[i].key === dragLayer.noteKey)
+                        carried = i
+                }
+                // First card whose natural centre is below the pointer: insert in front of it.
+                var found = -1
+                var lastSeen = -1
+                for (var j = 0; j < list.count; j++) {
+                    var slot = list.itemAtIndex(j)
+                    if (!slot || j === carried)
+                        continue
+                    lastSeen = j
+                    if (c.y < slot.y + slot.gap + slot.cardItem.height / 2) {
+                        found = j
+                        break
+                    }
+                }
+                if (found < 0 && lastSeen >= 0)
+                    found = lastSeen + 1
+                if (found >= 0) {
+                    index = carried >= 0 && found > carried ? found - 1 : found
+                    if (view.vm.canMoveTo(dragLayer.noteKey, index))
+                        before = found
+                    else
+                        index = -1
+                }
+            }
+        }
+        insertBefore = before
+        insertIndex = index
     }
 
     // --- scrolling the list while a card is held near its top or bottom edge
@@ -69,6 +126,7 @@ Item {
         var minY = list.originY
         var maxY = list.originY + Math.max(0, list.contentHeight - h)
         list.contentY = Math.max(minY, Math.min(maxY, list.contentY + v * scrollSpeed))
+        updateInsertion()          // the cards moved under a pointer that did not
     }
 
     Timer {
@@ -84,6 +142,24 @@ Item {
         function onSelectedChanged() { dragLayer.cancel() }
         function onAccountFilterChanged() { dragLayer.cancel() }
         function onCurrentNoteKeyChanged() { dragLayer.cancel() }
+    }
+
+    // Scrolling by wheel or the scroll bar while a card is carried moves the cards under the pointer.
+    Connections {
+        target: list
+        function onContentYChanged() {
+            if (dragLayer.active)
+                view.updateInsertion()
+        }
+    }
+
+    // A cancelled drag leaves no gap behind.
+    Connections {
+        target: dragLayer
+        function onCancelled() {
+            view.insertBefore = -1
+            view.insertIndex = -1
+        }
     }
 
     ColumnLayout {
@@ -299,7 +375,7 @@ Item {
                             if (active) {
                                 var slot = list.itemAt(centroid.pressPosition.x, centroid.pressPosition.y)
                                 if (slot)
-                                    view.beginDrag(slot.modelData, slot.cardItem)
+                                    view.beginDrag(slot.modelData, slot.cardItem, centroid.scenePosition)
                             } else {
                                 view.endDrag()
                             }
@@ -322,27 +398,65 @@ Item {
                     // handlers while the slot collapses during a drag.
                     delegate: Item {
                         id: slot
+                        required property int index
                         required property var modelData
                         readonly property bool dragged: dragLayer.active && dragLayer.noteKey === modelData.key
+                        readonly property alias cardItem: card
+                        // Room opened in front of this card for the carried note (manual order).
+                        property real gap: !dragged && view.insertBefore === index ? view.dragHeight : 0
+                        Behavior on gap {
+                            NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+                        }
 
                         width: list.width
                         // While its card is carried the slot closes and the other cards slide together;
                         // when the card comes back (or is dropped elsewhere) the slot opens again.
-                        height: dragged ? 0 : card.implicitHeight
+                        height: dragged ? 0 : gap + card.implicitHeight
                         Behavior on height {
                             NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
                         }
 
-                        readonly property alias cardItem: card
+                        // Marks where the carried note would land.
+                        Rectangle {
+                            visible: slot.gap > 2
+                            x: 0
+                            y: 0
+                            width: slot.width
+                            height: Math.max(0, slot.gap - Kirigami.Units.smallSpacing)
+                            radius: Kirigami.Units.smallSpacing * 2
+                            color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
+                            border.width: 2
+                            border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
+                        }
 
                         NoteCard {
                             id: card
+                            y: slot.gap
                             width: slot.width
                             opacity: slot.dragged ? 0 : 1
                             Behavior on opacity {
                                 NumberAnimation { duration: Kirigami.Units.shortDuration }
                             }
                             note: slot.modelData
+                        }
+                    }
+
+                    // The same room at the very end of the list.
+                    footer: Item {
+                        width: list.width
+                        height: view.insertBefore === list.count && view.insertBefore >= 0 ? view.dragHeight : 0
+                        Behavior on height {
+                            NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+                        }
+
+                        Rectangle {
+                            visible: parent.height > 2
+                            width: parent.width
+                            height: Math.max(0, parent.height - Kirigami.Units.smallSpacing)
+                            radius: Kirigami.Units.smallSpacing * 2
+                            color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
+                            border.width: 2
+                            border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
                         }
                     }
 

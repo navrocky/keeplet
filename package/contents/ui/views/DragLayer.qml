@@ -30,24 +30,32 @@ Item {
 
     visible: false
 
-    // (x, y) is the pointer, (startWidth, startHeight) the size of the card that is picked up.
-    function begin(key, text, x, y, startWidth, startHeight, color) {
+    // The chip hangs below and to the right of the pointer, so the target under it stays visible.
+    readonly property real chipGrabX: Kirigami.Units.gridUnit
+    readonly property real chipGrabY: Kirigami.Units.gridUnit * 0.6
+
+    // The pointer is at (x, y); the picked-up card occupies (cardX, cardY, cardWidth, cardHeight), all in this
+    // item's coordinates. The ghost starts exactly over the card and shrinks into the chip next to the pointer.
+    function begin(key, text, x, y, cardX, cardY, cardWidth, cardHeight, color) {
         if (active)
             cancel()
         noteKey = key
         title = text
         tint = color
         pointer = Qt.point(x, y)
-        // Jump to the card's size without animation, then shrink to the chip.
         ghost.animate = false
-        ghost.width = startWidth
-        ghost.height = startHeight
+        ghost.width = cardWidth
+        ghost.height = cardHeight
+        ghost.grabX = x - cardX
+        ghost.grabY = y - cardY
         ghost.animate = true
         active = true
         visible = true
         ghost.visible = true
         ghost.width = Qt.binding(function () { return layer.chipWidth })
         ghost.height = Qt.binding(function () { return layer.chipHeight })
+        ghost.grabX = Qt.binding(function () { return layer.chipGrabX })
+        ghost.grabY = Qt.binding(function () { return layer.chipGrabY })
         watchdog.restart()
     }
 
@@ -58,13 +66,15 @@ Item {
         watchdog.restart()
     }
 
-    // Drops the note where the pointer is. DropAreas under the ghost get onDropped.
+    // Drops the note where the pointer is. DropAreas under the ghost get onDropped. Returns the action a
+    // target accepted, Qt.IgnoreAction if none did (and when no drag was running).
     function drop() {
         if (!active)
-            return
+            return Qt.IgnoreAction
         var action = ghost.Drag.drop()
         _hide()
         ended(action)
+        return action
     }
 
     function cancel() {
@@ -92,10 +102,12 @@ Item {
     Rectangle {
         id: ghost
         property bool animate: true
+        // Where the pointer is inside the ghost; moves from the grab point on the card to the chip's corner.
+        property real grabX: 0
+        property real grabY: 0
         visible: false
-        // Centered on the pointer; the size changes while the card shrinks into the chip.
-        x: layer.pointer.x - width / 2
-        y: layer.pointer.y - height / 2
+        x: layer.pointer.x - grabX
+        y: layer.pointer.y - grabY
         width: layer.chipWidth
         height: layer.chipHeight
         radius: Kirigami.Units.smallSpacing * 2
@@ -112,10 +124,19 @@ Item {
             enabled: ghost.animate
             NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
         }
+        Behavior on grabX {
+            enabled: ghost.animate
+            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+        }
+        Behavior on grabY {
+            enabled: ghost.animate
+            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+        }
 
         Drag.active: layer.active
         Drag.source: ghost
-        Drag.hotSpot: Qt.point(width / 2, height / 2)
+        // The drop position is the pointer itself, wherever the chip hangs.
+        Drag.hotSpot: Qt.point(grabX, grabY)
 
         // The drop targets read the dragged note from the drag source.
         property string noteKey: layer.noteKey
