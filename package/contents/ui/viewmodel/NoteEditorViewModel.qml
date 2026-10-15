@@ -6,7 +6,7 @@ import "../../code/core/history.js" as History
 // Closing the note resets the history.
 //
 // `notes` is the NotesViewModel (needs currentNoteKey, noteByKey, saveNote, removeNote, canWrite,
-// capabilities, closeNote).
+// capabilities, closeNote, labelsOf, writableAccounts).
 QtObject {
     id: vm
 
@@ -32,6 +32,27 @@ QtObject {
     readonly property bool nestedItems: note !== null && !!notes.capabilities(note.accountKey)
                                         && !!notes.capabilities(note.accountKey).nestedItems
 
+    // Labels of the note's account that can be switched on and off: [{id, name, on}]. Empty when the
+    // provider has no labels.
+    readonly property var labelChoices: {
+        if (note === null)
+            return []
+        var caps = notes.capabilities(note.accountKey)
+        if (!caps || caps.labels === "none")
+            return []
+        var on = {}
+        note.labels.forEach(function (l) { on[l.id] = true })
+        return notes.labelsOf(note.accountKey).map(function (l) {
+            return { id: l.id, name: l.name, on: !!on[l.id] }
+        }).sort(function (a, b) { return a.name.localeCompare(b.name) })
+    }
+    readonly property bool labelsSingle: note !== null && !!notes.capabilities(note.accountKey)
+                                         && notes.capabilities(note.accountKey).labels === "single"
+
+    // A new note that has not been stored yet may still be moved to another account.
+    readonly property bool isNewUnsaved: note !== null && note.id === ""
+    readonly property var accountChoices: isNewUnsaved ? notes.writableAccounts() : []
+
     // Asks the View to focus an item (after addItem).
     signal itemFocusRequested(int index)
 
@@ -51,6 +72,31 @@ QtObject {
     function setColor(name) { _change("", function (n) { n.color = name }) }
     function togglePinned() { _change("", function (n) { n.pinned = !n.pinned }) }
     function setArchived(archived) { _change("", function (n) { n.archived = !!archived }) }
+    // Switches one label of the note on or off (single-category providers keep at most one).
+    function toggleLabel(labelId) {
+        var choice = labelChoices.filter(function (l) { return l.id === labelId })[0]
+        if (!choice)
+            return
+        _change("", function (n) {
+            if (choice.on) {
+                n.labels = n.labels.filter(function (l) { return l.id !== labelId })
+            } else {
+                var added = { id: choice.id, name: choice.name }
+                n.labels = labelsSingle ? [added] : n.labels.concat([added])
+            }
+        })
+    }
+
+    // Moves a new, not yet stored note to another account; labels belong to an account, so they are dropped.
+    function setAccount(accountKey) {
+        if (!isNewUnsaved || !notes.canWrite(accountKey) || note.accountKey === accountKey)
+            return
+        _change("", function (n) {
+            n.accountKey = accountKey
+            n.labels = []
+        })
+    }
+
     function setLabels(labels) {
         _change("", function (n) {
             n.labels = labels.map(function (l) { return { id: l.id, name: l.name } })

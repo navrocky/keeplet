@@ -20,7 +20,18 @@ TestCase {
 
             function noteByKey(key) { return store[key] || null }
             function canWrite(accountKey) { return writable }
-            function capabilities(accountKey) { return { colors: ["DEFAULT", "RED", "BLUE"], nestedItems: true } }
+            property string labelMode: "multi"
+            property var accountLabels: [{ id: "L1", name: "Work", accountKey: "acc" },
+                                         { id: "L2", name: "Home", accountKey: "acc" }]
+            function capabilities(accountKey) {
+                return { colors: ["DEFAULT", "RED", "BLUE"], nestedItems: true, labels: labelMode }
+            }
+            function labelsOf(accountKey) {
+                return accountLabels.filter(function (l) { return l.accountKey === accountKey })
+            }
+            function writableAccounts() {
+                return [{ key: "acc", name: "me" }, { key: "acc2", name: "work" }]
+            }
             function closeNote() { currentNoteKey = "" }
             function removeNote(note) { removed.push(note.key); delete store[note.key]; return true }
             function saveNote(note) {
@@ -295,5 +306,72 @@ TestCase {
         compare(editor.note.title, "Title")
         wait(60)
         compare(notes.saved.length, 0)
+    }
+
+    // --- labels and account of a new note
+
+    function test_labelChoicesShowWhichAreOn() {
+        var c = open(noteData({ labels: [{ id: "L2", name: "Home" }] }))
+        compare(c.editor.labelChoices.map(function (l) { return l.name + ":" + l.on }).join(), "Home:true,Work:false")
+    }
+
+    function test_toggleLabelIsAnUndoableStep() {
+        var c = open(noteData())
+        c.editor.toggleLabel("L1")
+        compare(c.editor.note.labels.map(function (l) { return l.id }).join(), "L1")
+        c.editor.toggleLabel("L2")
+        compare(c.editor.note.labels.map(function (l) { return l.id }).join(), "L1,L2")
+        c.editor.toggleLabel("L1")
+        compare(c.editor.note.labels.map(function (l) { return l.id }).join(), "L2")
+        c.editor.undo()
+        compare(c.editor.note.labels.map(function (l) { return l.id }).join(), "L1,L2")
+        c.editor.flush()
+        compare(c.notes.saved[0].labels.length, 2)
+    }
+
+    function test_singleCategoryProviderKeepsOneLabel() {
+        var notes = notesComp.createObject(tc, { labelMode: "single" })
+        var data = noteData({ labels: [{ id: "L1", name: "Work" }] })
+        notes.store[data.key] = data
+        var editor = editorComp.createObject(tc, { notes: notes, saveDelay: 20 })
+        notes.currentNoteKey = data.key
+        verify(editor.labelsSingle)
+        editor.toggleLabel("L2")
+        compare(editor.note.labels.map(function (l) { return l.id }).join(), "L2")
+    }
+
+    function test_noLabelsCapabilityMeansNoChoices() {
+        var notes = notesComp.createObject(tc, { labelMode: "none" })
+        var data = noteData()
+        notes.store[data.key] = data
+        var editor = editorComp.createObject(tc, { notes: notes })
+        notes.currentNoteKey = data.key
+        compare(editor.labelChoices.length, 0)
+    }
+
+    function test_unknownLabelIsIgnored() {
+        var c = open(noteData())
+        c.editor.toggleLabel("nope")
+        verify(!c.editor.canUndo)
+    }
+
+    function test_newNoteMayChangeAccountUntilItIsStored() {
+        var c = open(noteData({ id: "", key: "<new>", labels: [{ id: "L1", name: "Work" }] }))
+        verify(c.editor.isNewUnsaved)
+        compare(c.editor.accountChoices.length, 2)
+        c.editor.setAccount("acc2")
+        compare(c.editor.note.accountKey, "acc2")
+        compare(c.editor.note.labels.length, 0)          // labels belong to the old account
+        c.editor.undo()
+        compare(c.editor.note.accountKey, "acc")
+        compare(c.editor.note.labels.length, 1)
+    }
+
+    function test_storedNoteCannotChangeAccount() {
+        var c = open(noteData())
+        verify(!c.editor.isNewUnsaved)
+        compare(c.editor.accountChoices.length, 0)
+        c.editor.setAccount("acc2")
+        compare(c.editor.note.accountKey, "acc")
     }
 }
