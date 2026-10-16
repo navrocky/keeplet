@@ -504,6 +504,26 @@ TestCase {
         compare(c.vm.unsynced, 1)
     }
 
+    function test_dragOutOfALabelGroupRemovesOnlyThatLabel() {
+        var data = personalData()
+        data.labels.push({ id: "L2", name: "Home" }, { id: "L3", name: "Misc" })
+        data.notes.forEach(function (n) { if (n.id === "b") n.labels = [{ id: "L1", name: "Work" }, { id: "L3", name: "Misc" }] })
+        var c = make([entry(keepAcc, { data: data })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.select("label:fake:me@x|L1")
+        verify(c.vm.dropNote("fake:me@x/b", "label:fake:me@x|L2"))
+        compare(labelsOfNote(c.vm, "b"), "L3,L2")           // L1 (the source group) is gone, L3 stays
+    }
+
+    function test_dropFromAllKeepsExistingLabels() {
+        var data = personalData()
+        data.labels.push({ id: "L2", name: "Home" })
+        var c = make([entry(keepAcc, { data: data })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.dropNote("fake:me@x/b", "label:fake:me@x|L2"))
+        compare(labelsOfNote(c.vm, "b"), "L1,L2")
+    }
+
     function test_dropOnTheSameLabelOrAllIsRefused() {
         var c = make([entry(keepAcc, { data: personalData() })])
         tryVerify(function () { return c.vm.loaded })

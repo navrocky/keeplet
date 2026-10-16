@@ -424,7 +424,11 @@ QtObject {
             return null
         if (note.labels.some(function (l) { return l.id === target.id }))
             return null
-        var next = caps.labels === "single" ? [target] : note.labels.concat([target])
+        // Dragged out of a label group: the note moves, so that group's label goes; other labels stay.
+        var from = selected.indexOf("label:") === 0 ? selected.substring("label:".length) : ""
+        var source = labels.filter(function (l) { return l.key === from && l.accountKey === note.accountKey })[0]
+        var kept = source ? note.labels.filter(function (l) { return l.id !== source.id }) : note.labels
+        var next = caps.labels === "single" ? [target] : kept.concat([target])
         return { note: note, labels: next, kind: "labeled", name: target.name }
     }
 
@@ -433,7 +437,8 @@ QtObject {
         return _dropPlan(noteKey, railKey) !== null
     }
 
-    // "Label" groups add the label (or replace it for single-category providers), "No label" removes all
+    // "Label" groups add the label (dropping the one of the group the note is dragged from; replace it for
+    // single-category providers), "No label" removes all
     // labels; All/Archive/Trash and other accounts' labels are refused. Undoable through undoLast.
     function dropNote(noteKey, railKey) {
         var plan = _dropPlan(noteKey, railKey)
