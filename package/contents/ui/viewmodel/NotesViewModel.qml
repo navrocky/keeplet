@@ -43,6 +43,8 @@ QtObject {
     // --- Input (set by the View)
     property string searchText: ""
     // Selected group: "all" | "unlabeled" | "label:<accountKey>|<labelId>" | "archive" | "trash"
+    // The widget's own icon (shown for "All notes").
+    readonly property url appIcon: Qt.resolvedUrl("../../icons/keeplet.svg")
     property string selected: "all"
     property string accountFilter: "" // accountKey or "" for all accounts
     property bool railCollapsed: false
@@ -577,7 +579,7 @@ QtObject {
         var hasArchive = anyCap(function (c) { return c.archive })
         var hasTrash = anyCap(function (c) { return c.trash })
 
-        items.push({ type: "group", key: "all", kind: "all", icon: "knotes", accountKey: "",
+        items.push({ type: "group", key: "all", kind: "all", icon: appIcon, accountKey: "",
                      count: _count({}), droppable: false })
         if (hasLabels) {
             items.push({ type: "group", key: "unlabeled", kind: "unlabeled", icon: "tag-delete", accountKey: "",
@@ -610,7 +612,7 @@ QtObject {
 
         rail = items
         railVisible = items.length > 1
-        accountTabs = [{ key: "", name: "", icon: "knotes" }].concat(keys.map(function (k) {
+        accountTabs = [{ key: "", name: "", icon: appIcon }].concat(keys.map(function (k) {
             return { key: k, name: _accs[k].account.displayName, icon: _accs[k].provider.icon }
         }))
     }
