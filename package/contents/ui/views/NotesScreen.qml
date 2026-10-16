@@ -243,7 +243,7 @@ Item {
             PlasmaComponents.ToolButton {
                 id: menuButton
                 icon.name: "application-menu"
-                onClicked: { menu.items.active = true; menu.visualParent = menuButton; menu.openRelative() }
+                onClicked: { menu.visualParent = menuButton; menu.openRelative() }
 
                 PlasmaExtras.Menu {
                     id: menu
