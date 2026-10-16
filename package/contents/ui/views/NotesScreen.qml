@@ -189,21 +189,21 @@ Item {
                 id: addButton
                 icon.name: "list-add"
                 enabled: view.vm.canCreate
-                onClicked: addMenu.popup(addButton, 0, addButton.height)
+                onClicked: { addMenu.visualParent = addButton; addMenu.openRelative() }
                 PlasmaComponents.ToolTip.text: i18n("New note")
                 PlasmaComponents.ToolTip.visible: hovered
 
-                QQC2.Menu {
+                PlasmaExtras.Menu {
                     id: addMenu
-                    QQC2.MenuItem {
+                    PlasmaExtras.MenuItem {
                         text: i18n("New note")
-                        icon.name: "document-new"
-                        onTriggered: view.vm.openNewNote("NOTE")
+                        icon: "document-new"
+                        onClicked: view.vm.openNewNote("NOTE")
                     }
-                    QQC2.MenuItem {
+                    PlasmaExtras.MenuItem {
                         text: i18n("New list")
-                        icon.name: "view-list-details"
-                        onTriggered: view.vm.openNewNote("LIST")
+                        icon: "view-list-details"
+                        onClicked: view.vm.openNewNote("LIST")
                     }
                 }
             }
@@ -219,28 +219,30 @@ Item {
             PlasmaComponents.ToolButton {
                 id: menuButton
                 icon.name: "application-menu"
-                onClicked: menu.popup(menuButton, 0, menuButton.height)
+                onClicked: { menu.items.active = true; menu.visualParent = menuButton; menu.openRelative() }
 
-                QQC2.Menu {
+                PlasmaExtras.Menu {
                     id: menu
 
-                    QQC2.MenuItem {
+                    PlasmaExtras.MenuItem {
                         text: i18n("Add account…")
-                        icon.name: "list-add"
-                        onTriggered: view.accountsVm.requestSignIn()
+                        icon: "list-add"
+                        onClicked: view.accountsVm.requestSignIn()
                     }
-                    QQC2.MenuSeparator {}
+                    PlasmaExtras.MenuItem { separator: true }
 
-                    Instantiator {
+                    // Filled when the menu is first opened (the menu is a native window, created on demand).
+                    property Instantiator items: Instantiator {
+                        active: false
                         model: view.accountsVm.accounts
-                        delegate: QQC2.MenuItem {
+                        delegate: PlasmaExtras.MenuItem {
                             required property var modelData
                             text: i18n("Sign out %1", modelData.displayName)
-                            icon.name: "system-log-out"
-                            onTriggered: view.accountsVm.remove(modelData.key)
+                            icon: "system-log-out"
+                            onClicked: view.accountsVm.remove(modelData.key)
                         }
-                        onObjectAdded: (index, object) => menu.addItem(object)
-                        onObjectRemoved: (index, object) => menu.removeItem(object)
+                        onObjectAdded: (index, object) => menu.addMenuItem(object)
+                        onObjectRemoved: (index, object) => menu.removeMenuItem(object)
                     }
                 }
             }

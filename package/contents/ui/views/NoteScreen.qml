@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
 import org.kde.plasma.components as PlasmaComponents
+import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
 import "keepColors.js" as KeepColors
 
@@ -118,24 +119,26 @@ Rectangle {
                 // Only for a new note that is not stored yet and can go to several accounts.
                 visible: screen.editor.accountChoices.length > 1
                 icon.name: "user"
-                onClicked: accountMenu.popup(accountButton, 0, accountButton.height)
+                onClicked: { accountMenu.items.active = true; accountMenu.visualParent = accountButton; accountMenu.openRelative() }
                 PlasmaComponents.ToolTip.text: i18n("Account")
                 PlasmaComponents.ToolTip.visible: hovered
 
-                QQC2.Menu {
+                PlasmaExtras.Menu {
                     id: accountMenu
 
-                    Instantiator {
+                    // Filled when the menu is first opened (the menu is a native window, created on demand).
+                    property Instantiator items: Instantiator {
+                        active: false
                         model: screen.editor.accountChoices
-                        delegate: QQC2.MenuItem {
+                        delegate: PlasmaExtras.MenuItem {
                             required property var modelData
                             text: modelData.name
                             checkable: true
                             checked: screen.note !== null && screen.note.accountKey === modelData.key
-                            onTriggered: screen.editor.setAccount(modelData.key)
+                            onClicked: screen.editor.setAccount(modelData.key)
                         }
-                        onObjectAdded: (index, object) => accountMenu.addItem(object)
-                        onObjectRemoved: (index, object) => accountMenu.removeItem(object)
+                        onObjectAdded: (index, object) => accountMenu.addMenuItem(object)
+                        onObjectRemoved: (index, object) => accountMenu.removeMenuItem(object)
                     }
                 }
             }
@@ -145,24 +148,26 @@ Rectangle {
                 visible: screen.editor.labelChoices.length > 0
                 enabled: screen.editor.editable
                 icon.name: "tag"
-                onClicked: labelsMenu.popup(labelsButton, 0, labelsButton.height)
+                onClicked: { labelsMenu.items.active = true; labelsMenu.visualParent = labelsButton; labelsMenu.openRelative() }
                 PlasmaComponents.ToolTip.text: i18n("Labels")
                 PlasmaComponents.ToolTip.visible: hovered
 
-                QQC2.Menu {
+                PlasmaExtras.Menu {
                     id: labelsMenu
 
-                    Instantiator {
+                    // Filled when the menu is first opened (the menu is a native window, created on demand).
+                    property Instantiator items: Instantiator {
+                        active: false
                         model: screen.editor.labelChoices
-                        delegate: QQC2.MenuItem {
+                        delegate: PlasmaExtras.MenuItem {
                             required property var modelData
                             text: modelData.name
                             checkable: true
                             checked: modelData.on
-                            onTriggered: screen.editor.toggleLabel(modelData.id)
+                            onClicked: screen.editor.toggleLabel(modelData.id)
                         }
-                        onObjectAdded: (index, object) => labelsMenu.addItem(object)
-                        onObjectRemoved: (index, object) => labelsMenu.removeItem(object)
+                        onObjectAdded: (index, object) => labelsMenu.addMenuItem(object)
+                        onObjectRemoved: (index, object) => labelsMenu.removeMenuItem(object)
                     }
                 }
             }
@@ -191,20 +196,20 @@ Rectangle {
                 id: moreButton
                 enabled: screen.editor.editable
                 icon.name: "overflow-menu"
-                onClicked: moreMenu.popup(moreButton, 0, moreButton.height)
+                onClicked: { moreMenu.visualParent = moreButton; moreMenu.openRelative() }
 
-                QQC2.Menu {
+                PlasmaExtras.Menu {
                     id: moreMenu
 
-                    QQC2.MenuItem {
+                    PlasmaExtras.MenuItem {
                         text: screen.note !== null && screen.note.archived ? i18n("Unarchive") : i18n("Archive")
-                        icon.name: "archive-insert"
-                        onTriggered: screen.editor.setArchived(!(screen.note !== null && screen.note.archived))
+                        icon: "archive-insert"
+                        onClicked: screen.editor.setArchived(!(screen.note !== null && screen.note.archived))
                     }
-                    QQC2.MenuItem {
+                    PlasmaExtras.MenuItem {
                         text: i18n("Move to trash")
-                        icon.name: "user-trash"
-                        onTriggered: screen.editor.trash()
+                        icon: "user-trash"
+                        onClicked: screen.editor.trash()
                     }
                 }
             }
