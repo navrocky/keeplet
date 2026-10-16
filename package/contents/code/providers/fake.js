@@ -72,6 +72,11 @@ function createSession(account, secret, options) {
             return state.notes.map(function (n) { return Notes.makeNote(n) })
         },
 
+        note: function (state, id) {
+            var found = state.notes.filter(function (n) { return n.id === id })[0]
+            return found ? Notes.makeNote(found) : null
+        },
+
         labels: function (state) {
             return state.labels.map(function (l) { return { id: l.id, name: l.name } })
         },

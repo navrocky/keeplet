@@ -179,8 +179,19 @@ function buildNotes(state) {
 
 // One top-level note by id (any state: archived, trashed), or null.
 function buildNote(state, id) {
-    var found = buildNotes(state).filter(function (n) { return n.id === id })
-    return found.length > 0 ? found[0] : null
+    var raw = state.nodes[id]
+    if (!raw || raw.parentId !== ROOT || isDeleted(raw) || (raw.type !== "NOTE" && raw.type !== "LIST"))
+        return null
+    // Only this note's children (one pass over the nodes), not the whole account.
+    var kids = []
+    Object.keys(state.nodes).forEach(function (nodeId) {
+        var n = state.nodes[nodeId]
+        if (n.parentId === id && !isDeleted(n))
+            kids.push(n)
+    })
+    var children = {}
+    children[id] = kids
+    return _buildNote(raw, children, state)
 }
 
 function buildLabels(state) {

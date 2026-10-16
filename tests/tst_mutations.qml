@@ -399,4 +399,14 @@ TestCase {
         compare(n.text, "first\nsecond\nthird")
         compare(Nodes.isDeleted(s.nodes["l1.b"]) + Nodes.isDeleted(s.nodes["l1.c"]) + Nodes.isDeleted(s.nodes["l1.a"]), 2)
     }
+
+    function test_buildNoteMatchesTheFullBuild() {
+        var s = stateWith()
+        var all = Nodes.buildNotes(s)
+        all.forEach(function (n) {
+            compare(JSON.stringify(Nodes.buildNote(s, n.id)), JSON.stringify(n))
+        })
+        verify(Nodes.buildNote(s, "missing") === null)
+        verify(Nodes.buildNote(s, "l1.a") === null)            // an item is not a note
+    }
 }

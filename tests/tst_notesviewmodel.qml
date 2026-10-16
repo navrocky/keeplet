@@ -899,4 +899,16 @@ TestCase {
         verify(c.cache.store["fake:me@x"].indexOf("Last words") >= 0)
         compare(c.cache.flushed, 1)
     }
+
+    function test_savingOneNoteKeepsTheListAndOrderConsistent() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        var before = ids(c.vm)
+        var note = first(c.vm, "a")
+        note.title = "Edited"
+        c.vm.saveNote(note)
+        compare(ids(c.vm), before)
+        compare(first(c.vm, "a").title, "Edited")
+        compare(c.vm.noteByKey("fake:me@x/a").title, "Edited")
+    }
 }

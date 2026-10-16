@@ -145,6 +145,12 @@ function createSession(account, secret, options) {
             return Nodes.buildNotes(state).map(normalized)
         },
 
+        // One note by id (null when it is not a live note): much cheaper than notes() for a single edit.
+        note: function (state, id) {
+            var n = Nodes.buildNote(state, id)
+            return n ? normalized(n) : null
+        },
+
         labels: function (state) {
             return Nodes.buildLabels(state)
         },

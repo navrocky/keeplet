@@ -160,7 +160,7 @@ QtObject {
         // currentNote follows the stored note at once.
         if (!note.id && currentNoteKey === draftKey)
             _draftTarget = key
-        _afterWrite(a)
+        _afterWrite(a, saved.id)
         return key
     }
 
@@ -503,9 +503,14 @@ QtObject {
         }
     }
 
-    function _afterWrite(a) {
+    // `noteId`: the one note that changed; when it is already listed (and the provider can build a single note)
+    // only that note is rebuilt, which keeps typing in a big account cheap. Anything else rebuilds everything.
+    function _afterWrite(a, noteId) {
         _cacheLater(a.account.key)
-        _rebuild()
+        if (noteId === undefined || !_patchNote(a, noteId))
+            _rebuild()
+        else
+            _applyFilter()
         _updateStatus()
         _writeTimer.restart()
     }
@@ -572,6 +577,28 @@ QtObject {
         lastSync = last
         unsynced = queued
         errors = errs
+    }
+
+    function _patchNote(a, noteId) {
+        if (typeof a.session.note !== "function")
+            return false
+        var key = Workspace.noteKey(a.account.key, noteId)
+        var at = -1
+        for (var i = 0; i < _all.length; i++) {
+            if (_all[i].key === key) {
+                at = i
+                break
+            }
+        }
+        if (at < 0)
+            return false
+        var fresh = a.session.note(a.state, noteId)
+        if (!fresh)
+            return false
+        var copy = _all.slice()
+        copy[at] = Workspace.annotate(a.account, [fresh], []).notes[0]
+        _all = copy
+        return true
     }
 
     function _rebuild() {
