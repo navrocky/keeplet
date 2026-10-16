@@ -4,6 +4,7 @@ import "../package/contents/code/providers/contract.js" as Contract
 import "../package/contents/code/providers/registry.js" as Registry
 import "../package/contents/code/providers/fake.js" as Fake
 import "../package/contents/code/providers/keep/index.js" as Keep
+import "../package/contents/code/providers/local/index.js" as Local
 import "../package/contents/code/providers/keep/gauth.js" as GAuth
 import "../package/contents/code/providers/keep/keepapi.js" as KeepApi
 
@@ -72,7 +73,8 @@ TestCase {
         verify(Registry.get("keep") !== null)
         compare(Registry.get("keep").name, "Google Keep")
         compare(Registry.get("nope"), null)
-        compare(Registry.list().length, 1)
+        compare(Registry.list().length, 2)
+        compare(Registry.get("local").name, "Local notes")
         // Every registered provider honors the contract.
         Registry.list().forEach(function (p) { compare(Contract.validate(p).join(), "") })
     }

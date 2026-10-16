@@ -1,8 +1,9 @@
 .pragma library
 .import "keep/index.js" as Keep
+.import "local/index.js" as Local
 
 // Providers available in the release build. Add new providers here (docs/providers.md).
-var _providers = [Keep]
+var _providers = [Keep, Local]
 
 function list() {
     return _providers.slice()

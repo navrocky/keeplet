@@ -16,7 +16,8 @@ var capabilities = {
     pinned: true, archive: true, trash: true, images: true,
     write: true,      // session.commit / remove / pending
     reorder: true,    // session.reorder (manual order of notes; sortValue of the note node)
-    offlineEdit: true // edits are queued locally and sent when the server is reachable
+    offlineEdit: true, // edits are queued locally and sent when the server is reachable
+    persistent: false // the server is the source of truth; the local state is a disposable cache
 }
 
 var credentialFields = [
