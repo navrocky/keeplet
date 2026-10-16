@@ -53,7 +53,7 @@ directory and opens it with `plasmawindowed`. Re-run after each QML change.
   2. Notes appear; colors, pins, labels match keep.google.com.
   3. Edit/create/archive/trash in the widget → visible on keep.google.com and the phone.
   4. Edit on the web → visible in the widget after sync.
-  5. Sign out → KWallet entry (or config key) removed.
+  5. Settings → Accounts → Sign Out → KWallet entry (or config key) removed. Add a Local notes account: notes survive a restart; deleting it asks for confirmation.
   6. Repeat 1–2 with KWallet disabled (fallback storage).
   7. Create a note and a list; edit, undo/redo, change color and labels; trash and restore; empty trash.
   8. Drag a note onto a label and onto "No label"; check it on the web; use the Undo notice.

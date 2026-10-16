@@ -9,6 +9,7 @@ code/core/        provider-neutral: notes.js (note shape), workspace.js (merge/f
                   errors.js (ProviderError), util.js, migration.js
 code/providers/   contract.js (structural check), registry.js, fake.js (tests/previews)
 code/providers/keep/   index.js (the provider), gauth.js, keepapi.js, nodes.js
+code/providers/local/  index.js (notes stored only on this machine; no service)
 ```
 
 ## Contract
@@ -17,7 +18,7 @@ A provider is a JS module (`.pragma library`) exporting:
 | Export | Meaning |
 |---|---|
 | `id`, `name`, `icon` | stable id (`"keep"`), display name, Breeze icon name |
-| `capabilities` | `labels: "multi" \| "single" \| "none"`, `colors`, `checklists`, `nestedItems`, `convertType`, `pinned`, `archive`, `trash`, `images`, `offlineEdit` (booleans except `labels` and `colors`; `colors` is the list of supported color names, empty = no colors; the first entry is the "no color" default) |
+| `capabilities` | `labels: "multi" \| "single" \| "none"`, `colors`, `checklists`, `nestedItems`, `convertType`, `pinned`, `archive`, `trash`, `images`, `offlineEdit`, `persistent` (booleans except `labels` and `colors`; `colors` is the list of supported color names, empty = no colors; the first entry is the "no color" default) |
 | `credentialFields` | `[{key, label, secret}]` — the sign-in form is generated from this |
 | `signIn(creds)` | `Promise<{accountId, displayName, secret, meta}>`; rejects with `ProviderError` (`network`, `badCredentials`, `failed`) |
 | `createSession(account, secret, options)` | returns a session (below); `options` is a test hook |
@@ -38,10 +39,21 @@ Session:
 | `pending(state)` | *(if `capabilities.write`)* number of queued edits |
 | `reorder(state, noteId, order)` | *(if `capabilities.reorder`)* puts a note at `order` in the account's own sequence (descending = top first); returns whether anything changed; queued like an edit |
 
+`persistent`: the session state is the only copy of the data (local provider), not a cache of a service. The
+ViewModel then saves it at once after every edit instead of after a quiet period, and an account whose stored
+state cannot be read is locked (error `storage`, no edits) so that an empty state never overwrites it.
+Signing in to such a provider has no secret, and a name that already exists is rejected (`exists`).
+
 Sessions own their tokens and refresh them internally (Keep: auth token cache, one retry on 401).
 
 Error kinds: `network` (keep showing cached data), `badCredentials` (sign-in), `auth` (stored session no
 longer valid → ask to sign in again), `unauthorized`, `failed` (+`detail`).
+
+## Choosing a type and managing accounts
+Accounts are added and removed in the settings dialog (page *Accounts*, `ui/configAccounts.qml` →
+`views/AccountsSettings.qml`), which has its own `AccountsViewModel` on the same database; it bumps the
+hidden `accountsRevision` config key so running widgets reload. The type comes from `registry.list()`; the form
+(`SignInView`, `embedded`) is generated from `credentialFields`. The burger menu only opens the settings.
 
 ## Adding a provider
 1. Create `code/providers/<id>/index.js` implementing the contract; keep protocol code next to it.

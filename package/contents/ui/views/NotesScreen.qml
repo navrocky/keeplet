@@ -5,6 +5,7 @@ import QtQuick.Controls as QQC2
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.plasmoid
 
 // Notes screen. Presentation only: reads and commands go through the ViewModels.
 // The root is a plain Item: the drag layer must be a sibling of the layout, never a child of it.
@@ -14,11 +15,17 @@ Item {
     required property var vm          // NotesViewModel
     required property var accountsVm  // AccountsViewModel
 
+    // Accounts are managed in the widget's settings dialog.
+    function openSettings() {
+        Plasmoid.internalAction("configure").trigger()
+    }
+
     function errorText(error) {
         var who = view.accountsVm.multiAccount ? error.displayName + ": " : ""
         switch (error.kind) {
         case "network": return who + i18n("Can't reach the service. Showing saved notes.")
         case "auth": return who + i18n("The saved session is no longer valid. Please sign in again.")
+        case "storage": return who + i18n("The stored notes could not be read. Editing is disabled to protect them.")
         case "unauthorized": return who + i18n("The service refused the session. Try again in a moment.")
         default: return who + i18n("Sync failed: %1", error.detail)
         }
@@ -242,24 +249,9 @@ Item {
                     id: menu
 
                     PlasmaExtras.MenuItem {
-                        text: i18n("Add account…")
-                        icon: "list-add"
-                        onClicked: view.accountsVm.requestSignIn()
-                    }
-                    PlasmaExtras.MenuItem { separator: true }
-
-                    // Filled when the menu is first opened (the menu is a native window, created on demand).
-                    property Instantiator items: Instantiator {
-                        active: false
-                        model: view.accountsVm.accounts
-                        delegate: PlasmaExtras.MenuItem {
-                            required property var modelData
-                            text: i18n("Sign out %1", modelData.displayName)
-                            icon: "system-log-out"
-                            onClicked: view.accountsVm.remove(modelData.key)
-                        }
-                        onObjectAdded: (index, object) => menu.addMenuItem(object)
-                        onObjectRemoved: (index, object) => menu.removeMenuItem(object)
+                        text: i18n("Settings…")
+                        icon: "configure"
+                        onClicked: view.openSettings()
                     }
                 }
             }
@@ -278,8 +270,8 @@ Item {
 
                 Kirigami.Action {
                     id: signInAction
-                    text: i18n("Sign In")
-                    onTriggered: view.accountsVm.requestSignIn()
+                    text: i18n("Open Settings")
+                    onTriggered: view.openSettings()
                 }
             }
         }

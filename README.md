@@ -47,10 +47,15 @@ The token works once; Keeplet exchanges it for a long-lived key and stores it in
 Don't share that key: it gives full access to your Google account.
 
 Accounts are shared by all Keeplet widgets: sign in once, every new widget shows your notes.
-You can add more accounts from the widget menu (**Add account…**).
+Accounts are managed in the widget settings (menu ☰ → **Settings…**, page **Accounts**): the list shows every
+account with its type and status, **Add Account…** lets you pick the type, and **Sign Out** removes an account.
+You can have several Google Keep accounts at once. You can also revoke access in your Google account →
+*Security* → *Your devices*.
 
-To sign out, open the widget menu (☰) → **Sign out <account>**. You can also revoke access in your
-Google account → *Security* → *Your devices*.
+### Local notes
+If you cannot or do not want to use Google Keep, add an account of the type **Local notes**: no sign-in,
+the notes live only on this computer (in the same local database file as above, unencrypted). Deleting
+such an account deletes its notes; there is no backup or export yet.
 
 ## Use
 - Click the widget to open your notes. Pinned notes are on top.

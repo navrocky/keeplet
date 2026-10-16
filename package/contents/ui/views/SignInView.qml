@@ -9,6 +9,10 @@ ColumnLayout {
     id: view
 
     required property var accounts   // AccountsViewModel
+    // Inside the settings dialog: no heading, the form fits its page.
+    property bool embedded: false
+    // {providerId, accountId} when an existing account signs in again: type and name are fixed.
+    readonly property var target: accounts.signInTarget
 
     readonly property var provider: accounts.providers.length > 0
                                     ? accounts.providers[Math.max(0, providerCombo.currentIndex)] : null
@@ -21,6 +25,7 @@ ColumnLayout {
         case "": return ""
         case "network": return i18n("Can't reach the service. Check your connection.")
         case "badCredentials": return i18n("The service rejected these credentials. Get a new token and try again.")
+        case "exists": return i18n("An account with this name already exists.")
         default: return i18n("Sign-in failed: %1", detail)
         }
     }
@@ -33,12 +38,15 @@ ColumnLayout {
                         + "3. Copy the value of the <b>oauth_token</b> cookie and paste it below.",
                         p.signInHelpUrl)
         }
+        if (p && p.id === "local")
+            return i18n("Notes are stored only on this computer. No sign-in is needed: just give the notebook a name.")
         return ""
     }
 
     Kirigami.Heading {
         Layout.fillWidth: true
         level: 2
+        visible: !view.embedded
         text: view.accounts.signedIn ? i18n("Add an account") : i18n("Sign in")
         wrapMode: Text.Wrap
     }
@@ -49,9 +57,21 @@ ColumnLayout {
         visible: view.accounts.providers.length > 1
         model: view.accounts.providers
         textRole: "name"
-        enabled: !view.accounts.busy
+        enabled: !view.accounts.busy && !view.target
         onCurrentIndexChanged: view.values = ({})
+
+        // An account that signs in again keeps its type.
+        function select(target) {
+            if (!target)
+                return
+            for (var i = 0; i < model.length; ++i) {
+                if (model[i].id === target.providerId)
+                    currentIndex = i
+            }
+        }
+        Component.onCompleted: select(view.target)
     }
+    onTargetChanged: providerCombo.select(target)
 
     PlasmaComponents.Label {
         Layout.fillWidth: true
@@ -74,6 +94,9 @@ ColumnLayout {
             required property var modelData
             Layout.fillWidth: true
             placeholderText: i18n(modelData.label)
+            // The name of the account that signs in again is fixed.
+            text: !modelData.secret && view.target ? view.target.accountId : ""
+            readOnly: !modelData.secret && !!view.target
             echoMode: modelData.secret ? TextInput.Password : TextInput.Normal
             enabled: !view.accounts.busy
             onTextChanged: {
@@ -88,7 +111,8 @@ ColumnLayout {
         Layout.fillWidth: true
 
         PlasmaComponents.Button {
-            text: i18n("Sign In")
+            text: view.provider && !view.provider.credentialFields.some(function (f) { return f.secret })
+                  ? i18n("Add") : i18n("Sign In")
             icon.name: "go-next"
             enabled: !view.accounts.busy && view.provider !== null
                      && view.provider.credentialFields.every(function (f) {
@@ -105,7 +129,7 @@ ColumnLayout {
         }
 
         PlasmaComponents.Button {
-            visible: view.accounts.signedIn
+            visible: view.accounts.signedIn || view.embedded
             text: i18n("Cancel")
             onClicked: view.accounts.cancelSignIn()
         }
@@ -125,5 +149,5 @@ ColumnLayout {
         visible: text !== ""
     }
 
-    Item { Layout.fillHeight: true }
+    Item { Layout.fillHeight: !view.embedded }
 }

@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
 import org.kde.plasma.plasmoid
-import org.kde.plasma.core as PlasmaCore
 import org.kde.kirigami as Kirigami
 import "viewmodel"
 import "views"
@@ -53,15 +52,6 @@ PlasmoidItem {
             console.warn("Keeplet: account migration failed:", e)
         })
     }
-
-    Plasmoid.contextualActions: [
-        PlasmaCore.Action {
-            text: i18n("Add Account…")
-            icon.name: "list-add"
-            visible: accountsVm.signedIn
-            onTriggered: accountsVm.requestSignIn()
-        }
-    ]
 
     fullRepresentation: Item {
         Layout.preferredWidth: Kirigami.Units.gridUnit * 30
