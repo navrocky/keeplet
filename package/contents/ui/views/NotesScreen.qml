@@ -209,11 +209,28 @@ Item {
             }
 
             PlasmaComponents.ToolButton {
+                id: syncButton
                 icon.name: "view-refresh"
-                enabled: !view.vm.syncing
-                onClicked: view.vm.refresh()
+                onClicked: {
+                    if (!view.vm.syncing)
+                        view.vm.refresh()
+                }
                 PlasmaComponents.ToolTip.text: i18n("Sync now")
                 PlasmaComponents.ToolTip.visible: hovered
+
+                // The icon turns while a sync runs; nothing is added to the layout, so the list never jumps.
+                RotationAnimator {
+                    target: syncButton.contentItem
+                    running: view.vm.syncing
+                    from: 0
+                    to: 360
+                    duration: 1000
+                    loops: Animation.Infinite
+                    onRunningChanged: {
+                        if (!running && target)
+                            target.rotation = 0
+                    }
+                }
             }
 
             PlasmaComponents.ToolButton {
@@ -246,12 +263,6 @@ Item {
                     }
                 }
             }
-        }
-
-        PlasmaComponents.ProgressBar {
-            Layout.fillWidth: true
-            indeterminate: true
-            visible: view.vm.syncing
         }
 
         Repeater {
