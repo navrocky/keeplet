@@ -317,16 +317,33 @@ Rectangle {
                     visible: screen.isList
                     clip: true
 
+                    // Rows are as tall as their text (items may wrap to several lines) but never below rowHeight.
                     readonly property int rowHeight: Math.max(Kirigami.Units.gridUnit * 2, probe.implicitHeight)
                     readonly property int openCount: screen.editor.openIndexes.length
                     readonly property int doneCount: screen.editor.doneIndexes.length
-                    readonly property int doneTop: openCount * rowHeight + rowHeight
+                    // Item index -> its row's height; delegates report it.
+                    property var rowHeights: []
+                    function heightOf(index) { return rowHeights[index] || rowHeight }
+                    function setHeight(index, h) {
+                        if (rowHeights[index] === h)
+                            return
+                        var copy = rowHeights.slice()
+                        copy[index] = h
+                        rowHeights = copy
+                    }
+                    function sumHeights(indexes) {
+                        var total = 0
+                        indexes.forEach(function (i) { total += heightOf(i) })
+                        return total
+                    }
+                    readonly property real openHeight: sumHeights(screen.editor.openIndexes)
+                    readonly property real doneHeight: sumHeights(screen.editor.doneIndexes)
+                    readonly property real doneTop: openHeight + rowHeight
                     property bool doneExpanded: true
                     // True while the items themselves change (add, remove, move, clear): rows then jump
                     // instead of sliding, because delegates are bound to indexes, not to items.
                     property bool instant: false
-                    property real contentHeight: openCount * rowHeight
-                                                 + (doneCount > 0 ? rowHeight + (doneExpanded ? doneCount * rowHeight : 0) : 0)
+                    property real contentHeight: openHeight + (doneCount > 0 ? rowHeight + (doneExpanded ? doneHeight : 0) : 0)
                     Behavior on contentHeight {
                         enabled: !list.instant
                         NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
@@ -344,28 +361,53 @@ Rectangle {
                     property int dragIndex: -1
                     property real dragOffset: 0
                     readonly property var dragPlace: dragIndex >= 0 && places[dragIndex] ? places[dragIndex] : null
+                    // Top of the carried row inside its section before the drag moved anything.
+                    readonly property real dragNaturalTop: {
+                        if (dragPlace === null)
+                            return 0
+                        var order = dragPlace.done ? screen.editor.doneIndexes : screen.editor.openIndexes
+                        return sumHeights(order.slice(0, dragPlace.pos))
+                    }
+                    // Place the carried row would take: how many of the other rows lie above its center.
                     readonly property int dragTo: {
                         if (dragPlace === null)
                             return -1
-                        var count = dragPlace.done ? doneCount : openCount
-                        return Math.max(0, Math.min(count - 1, Math.round(dragPlace.pos + dragOffset / rowHeight)))
+                        var order = dragPlace.done ? screen.editor.doneIndexes : screen.editor.openIndexes
+                        var center = dragNaturalTop + heightOf(dragIndex) / 2 + dragOffset
+                        var y = 0
+                        var n = 0
+                        order.forEach(function (i) {
+                            if (i === dragIndex)
+                                return
+                            if (y + heightOf(i) / 2 < center)
+                                n++
+                            y += heightOf(i)
+                        })
+                        return n
                     }
 
-                    function sectionTop(done) { return done ? doneTop : 0 }
-                    // Place of an item in its section while a drag opens a gap for the carried row.
-                    function slotOf(index) {
-                        var pl = places[index]
-                        if (!pl)
-                            return 0
-                        var p = pl.pos
-                        if (dragPlace !== null && index !== dragIndex && pl.done === dragPlace.done) {
-                            if (dragPlace.pos < dragTo && p > dragPlace.pos && p <= dragTo)
-                                p--
-                            else if (dragTo < dragPlace.pos && p >= dragTo && p < dragPlace.pos)
-                                p++
-                        }
-                        return p
+                    // Item index -> y of its row: sections stacked, rows by height; while dragging the carried row
+                    // sits at its new place so the others open a gap for it.
+                    readonly property var tops: {
+                        var out = []
+                        ;[false, true].forEach(function (done) {
+                            var order = (done ? screen.editor.doneIndexes : screen.editor.openIndexes).slice()
+                            if (dragPlace !== null && dragPlace.done === done) {
+                                order.splice(order.indexOf(dragIndex), 1)
+                                order.splice(dragTo, 0, dragIndex)
+                            }
+                            var y = done ? doneTop : 0
+                            order.forEach(function (i) {
+                                out[i] = y
+                                y += heightOf(i)
+                            })
+                        })
+                        return out
                     }
+
+                    function sectionTopOf(done) { return done ? doneTop : 0 }
+                    function sectionHeightOf(done) { return done ? doneHeight : openHeight }
+
                     function endDrag() {
                         var pl = dragPlace
                         var to = dragTo
@@ -380,8 +422,8 @@ Rectangle {
                         instant = false
                     }
 
-                    // Only to measure a row.
-                    QQC2.TextField { id: probe; visible: false }
+                    // Only to measure a one-line row.
+                    QQC2.TextArea { id: probe; visible: false }
 
                     Repeater {
                         id: items
@@ -399,15 +441,20 @@ Rectangle {
                             function focusField() { field.forceActiveFocus() }
 
                             width: list.width
-                            height: list.rowHeight
+                            height: Math.max(list.rowHeight, line.implicitHeight)
+                            onHeightChanged: list.setHeight(index, height)
+                            Component.onCompleted: list.setHeight(index, height)
                             z: dragging ? 10 : 0
                             y: {
                                 var pl = list.places[index]
                                 if (!pl)
                                     return 0
-                                if (dragging)
-                                    return list.sectionTop(pl.done) + pl.pos * list.rowHeight + list.dragOffset
-                                return list.sectionTop(pl.done) + list.slotOf(index) * list.rowHeight
+                                if (dragging) {
+                                    var top = list.sectionTopOf(pl.done)
+                                    return Math.max(top, Math.min(top + list.sectionHeightOf(pl.done) - height,
+                                                                  top + list.dragNaturalTop + list.dragOffset))
+                                }
+                                return list.tops[index] === undefined ? 0 : list.tops[index]
                             }
                             Behavior on y {
                                 enabled: !list.instant && !row.dragging
@@ -418,59 +465,87 @@ Rectangle {
                             Behavior on opacity { NumberAnimation { duration: Kirigami.Units.longDuration } }
 
                             RowLayout {
-                                anchors.fill: parent
+                                id: line
+                                anchors.left: parent.left
+                                anchors.right: parent.right
                                 anchors.leftMargin: (row.item ? row.item.indent : 0) * Kirigami.Units.gridUnit
                                 spacing: 0
 
-                                Kirigami.Icon {
-                                    id: handle
+                                // Controls keep the height of a one-line row and stay at the first line.
+                                Item {
                                     visible: screen.editor.editable
-                                    source: "handle-sort"
-                                    opacity: row.dragging ? 1 : 0.5
+                                    Layout.alignment: Qt.AlignTop
                                     Layout.preferredWidth: Kirigami.Units.iconSizes.small
-                                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
-                                    HoverHandler { cursorShape: Qt.OpenHandCursor }
-                                    DragHandler {
-                                        target: null
-                                        xAxis.enabled: false
-                                        cursorShape: Qt.ClosedHandCursor
-                                        onActiveChanged: {
-                                            if (active) {
-                                                list.dragOffset = 0
-                                                list.dragIndex = row.index
-                                            } else {
-                                                list.endDrag()
+                                    Layout.preferredHeight: list.rowHeight
+
+                                    Kirigami.Icon {
+                                        id: handle
+                                        anchors.centerIn: parent
+                                        width: Kirigami.Units.iconSizes.small
+                                        height: width
+                                        source: "handle-sort"
+                                        opacity: row.dragging ? 1 : 0.5
+                                        HoverHandler { cursorShape: Qt.OpenHandCursor }
+                                        DragHandler {
+                                            target: null
+                                            xAxis.enabled: false
+                                            cursorShape: Qt.ClosedHandCursor
+                                            onActiveChanged: {
+                                                if (active) {
+                                                    list.dragOffset = 0
+                                                    list.dragIndex = row.index
+                                                } else {
+                                                    list.endDrag()
+                                                }
                                             }
-                                        }
-                                        onActiveTranslationChanged: {
-                                            if (active)
-                                                list.dragOffset = activeTranslation.y
+                                            onActiveTranslationChanged: {
+                                                if (active)
+                                                    list.dragOffset = activeTranslation.y
+                                            }
                                         }
                                     }
                                 }
 
-                                QQC2.CheckBox {
-                                    checked: row.item !== null && row.item.checked
-                                    enabled: screen.editor.editable
-                                    onToggled: screen.editor.toggleItem(row.index)
+                                Item {
+                                    Layout.alignment: Qt.AlignTop
+                                    Layout.preferredWidth: box.implicitWidth
+                                    Layout.preferredHeight: list.rowHeight
+
+                                    QQC2.CheckBox {
+                                        id: box
+                                        anchors.centerIn: parent
+                                        checked: row.item !== null && row.item.checked
+                                        enabled: screen.editor.editable
+                                        onToggled: screen.editor.toggleItem(row.index)
+                                    }
                                 }
 
-                                QQC2.TextField {
+                                QQC2.TextArea {
                                     id: field
                                     Layout.fillWidth: true
+                                    Layout.minimumHeight: list.rowHeight
+                                    verticalAlignment: TextEdit.AlignVCenter
+                                    wrapMode: TextEdit.Wrap
                                     text: row.item ? row.item.text : ""
                                     readOnly: !screen.editor.editable
                                     color: screen.textColor
                                     opacity: row.done ? 0.6 : 1
                                     font.strikeout: row.done
                                     background: null
-                                    onTextEdited: screen.editor.setItemText(row.index, text)
-                                    onAccepted: list.structural(function () { screen.editor.addItem(row.index) })
+                                    onTextChanged: {
+                                        if (row.item !== null && text !== row.item.text)
+                                            screen.editor.setItemText(row.index, text)
+                                    }
                                     Keys.onPressed: event => {
                                         screen.handleUndoKeys(event)
                                         if (event.accepted)
                                             return
-                                        if (event.key === Qt.Key_Tab) {
+                                        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                                                && !(event.modifiers & Qt.ShiftModifier)) {
+                                            // Enter starts the next item; Shift+Enter breaks the line inside this one.
+                                            list.structural(function () { screen.editor.addItem(row.index) })
+                                            event.accepted = true
+                                        } else if (event.key === Qt.Key_Tab) {
                                             screen.editor.setItemIndent(row.index, 1)
                                             event.accepted = true
                                         } else if (event.key === Qt.Key_Backtab) {
@@ -483,12 +558,20 @@ Rectangle {
                                     }
                                 }
 
-                                PlasmaComponents.ToolButton {
+                                Item {
                                     visible: screen.editor.editable
-                                    icon.name: "edit-delete"
-                                    onClicked: list.structural(function () { screen.editor.removeItem(row.index) })
-                                    PlasmaComponents.ToolTip.text: i18n("Remove item")
-                                    PlasmaComponents.ToolTip.visible: hovered
+                                    Layout.alignment: Qt.AlignTop
+                                    Layout.preferredWidth: remove.implicitWidth
+                                    Layout.preferredHeight: list.rowHeight
+
+                                    PlasmaComponents.ToolButton {
+                                        id: remove
+                                        anchors.centerIn: parent
+                                        icon.name: "edit-delete"
+                                        onClicked: list.structural(function () { screen.editor.removeItem(row.index) })
+                                        PlasmaComponents.ToolTip.text: i18n("Remove item")
+                                        PlasmaComponents.ToolTip.visible: hovered
+                                    }
                                 }
                             }
                         }
@@ -497,7 +580,7 @@ Rectangle {
                     // Header of the Done section.
                     Item {
                         id: doneHeader
-                        y: list.openCount * list.rowHeight
+                        y: list.openHeight
                         width: list.width
                         height: list.rowHeight
                         visible: list.doneCount > 0

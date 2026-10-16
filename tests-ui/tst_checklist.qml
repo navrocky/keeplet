@@ -101,6 +101,19 @@ Item {
             tryCompare(rowOf(1), "visible", true)
         }
 
+        function test_multilineItemGrowsAndPushesTheNextRowDown() {
+            var l = list()
+            var one = l.rowHeight
+            tryCompare(rowOf(0), "height", one)                 // a short item keeps the minimum height
+            editor.setItemText(0, "first line\nsecond line\nthird line")
+            tryVerify(function () { return rowOf(0).height > one * 1.5 })
+            tryCompare(rowOf(2), "y", rowOf(0).height)          // the next open item follows the taller row
+            tryCompare(rowOf(1), "y", l.doneTop)
+            verify(l.doneTop > one * 2.5)
+            editor.setItemText(0, "short")
+            tryCompare(rowOf(0), "height", one)
+        }
+
         function test_dragHandleReordersWithinTheSection() {
             var l = list()
             var handle = find(rowOf(0), function (i) { return i.source === "handle-sort" })

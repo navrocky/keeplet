@@ -58,7 +58,7 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   structure/check changes, not while typing). The array itself is never split, so a checked item keeps its relative place
   when unchecked. `NoteScreen` positions rows by hand (one delegate per item, `y` from section and place): checking,
   dragging (handle at the row start, `moveItemInSection`) and folding the Done section are animations of `y`, `opacity`
-  and height. Structural edits (add/remove/clear/move) set `list.instant` because delegates are bound to indexes.
+  and height. Items are multi-line (`TextArea`, Enter = next item, Shift+Enter = line break); rows are as tall as their text but not below the one-line height, rows report their heights and `tops` stacks them. Structural edits (add/remove/clear/move) set `list.instant` because delegates are bound to indexes.
 - `convertToList` / `convertToText` (capability `convertType`) switch the note type, keeping check marks as Markdown task lines (`- [x] text`, `core/checklist.js`; plain lines when nothing is checked); `asText` feeds "Copy as text"; `clearDone` removes checked items.
 
 ## List interactions
