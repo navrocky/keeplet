@@ -18,7 +18,7 @@ QtObject {
     // Test hook: (account) => options passed to provider.createSession().
     property var sessionOptions: null
 
-    // [{key, providerId, providerName, icon, displayName, capabilities, needsSignIn}]
+    // [{key, providerId, accountId, providerName, icon, displayName, capabilities, needsSignIn}]
     property var accounts: []
     // [{account, provider: {id, name, icon, capabilities}, session}] for accounts whose secret is available.
     property var sessions: []
@@ -34,7 +34,9 @@ QtObject {
     property bool ready: false
     property bool busy: false
     property bool signInRequested: false   // show the sign-in form even though accounts exist
-    // "" | "network" | "badCredentials" | "failed" ; details for "failed" in errorDetail
+    // {providerId, accountId} of the account the form signs in again, or null for a new account.
+    property var signInTarget: null
+    // "" | "network" | "badCredentials" | "exists" | "failed" ; details for "failed" in errorDetail
     property string error: ""
     property string errorDetail: ""
 
@@ -68,6 +70,7 @@ QtObject {
                 accs.push({
                     key: it.account.key,
                     providerId: it.account.providerId,
+                    accountId: it.account.accountId,
                     providerName: p ? p.name : it.account.providerId,
                     icon: p ? p.icon : "dialog-question",
                     displayName: it.account.displayName,
@@ -92,6 +95,17 @@ QtObject {
         })
     }
 
+    // Signing in again replaces the secret of a service account, but a persistent account (local notes) has
+    // nothing to sign in to: the same name would silently join two notebooks. Rejects with kind "exists".
+    function duplicate(provider, key) {
+        if (!provider.capabilities.persistent || signInTarget)
+            return Promise.resolve()
+        return service.list().then(function (all) {
+            if (all.some(function (a) { return a.key === key }))
+                throw { kind: "exists" }
+        })
+    }
+
     function signIn(providerId, creds) {
         var provider = registry.get(providerId)
         if (!provider || busy)
@@ -101,11 +115,14 @@ QtObject {
         errorDetail = ""
         provider.signIn(creds).then(function (r) {
             var key = providerId + ":" + r.accountId
-            return service.writeSecret(key, r.secret).then(function () {
+            return duplicate(provider, key).then(function () {
+                return service.writeSecret(key, r.secret)
+            }).then(function () {
                 return service.save({ key: key, providerId: providerId, accountId: r.accountId,
                                       displayName: r.displayName, meta: r.meta || {} })
             }).then(function () {
                 signInRequested = false
+                signInTarget = null
                 return reload()
             })
         }).catch(function (e) {
@@ -126,8 +143,9 @@ QtObject {
         return service.remove(accountKey).then(function () { return reload() })
     }
 
-    function requestSignIn() { error = ""; errorDetail = ""; signInRequested = true }
-    function cancelSignIn() { error = ""; errorDetail = ""; signInRequested = false }
+    // `target` ({providerId, accountId}) signs an existing account in again; without it a new account is added.
+    function requestSignIn(target) { error = ""; errorDetail = ""; signInTarget = target || null; signInRequested = true }
+    function cancelSignIn() { error = ""; errorDetail = ""; signInTarget = null; signInRequested = false }
 
     property int _generation: 0
 
@@ -137,6 +155,8 @@ QtObject {
         target: vm.configuration && vm.configuration.objectName !== undefined ? vm.configuration : null
         ignoreUnknownSignals: true
         function onAccountKeysChanged() { vm.reload() }
+        // The settings dialog (another QML context) added or removed an account.
+        function onAccountsRevisionChanged() { vm.reload() }
     }
 
     // Not on configurationChanged: properties are assigned in arbitrary order during creation,

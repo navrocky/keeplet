@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import "../package/contents/ui/viewmodel" as VM
 import "../package/contents/code/providers/fake.js" as Fake
+import "../package/contents/code/providers/local/index.js" as Local
 
 TestCase {
     id: tc
@@ -136,5 +137,62 @@ TestCase {
         var c = make()
         compare(c.vm.providers.length, 1)
         compare(c.vm.providers[0].credentialFields[0].key, "name")
+    }
+
+    // --- several providers, several accounts of one provider
+
+    readonly property var mixedRegistry: ({
+        list: function () { return [Fake, Local] },
+        get: function (id) { return id === "fake" ? Fake : (id === "local" ? Local : null) }
+    })
+
+    function makeMixed() {
+        var svc = serviceComp.createObject(tc, {})
+        var vm = vmComp.createObject(tc, { service: svc, registry: mixedRegistry })
+        return { vm: vm, svc: svc }
+    }
+
+    function test_severalAccountsOfOneProviderAndAccountIdExposed() {
+        var c = make([acc("a"), acc("b")], { "fake:a": "s1", "fake:b": "s2" })
+        tryVerify(function () { return c.vm.accounts.length === 2 })
+        compare(c.vm.accounts[0].accountId, "a")
+        compare(c.vm.accounts[1].providerName, "Fake")
+        verify(c.vm.multiAccount)
+    }
+
+    function test_signInToDifferentProviders() {
+        var c = makeMixed()
+        tryVerify(function () { return c.vm.ready })
+        compare(c.vm.providers.length, 2)
+        c.vm.signIn("fake", { name: "x" })
+        tryVerify(function () { return c.vm.accounts.length === 1 })
+        c.vm.signIn("local", { name: "Home" })
+        tryVerify(function () { return c.vm.accounts.length === 2 })
+        compare(c.vm.accounts[1].key, "local:Home")
+        compare(c.vm.accounts[1].providerName, "Local notes")
+    }
+
+    function test_sameNameTwiceIsRejectedForLocalButNotForServiceAccounts() {
+        var c = makeMixed()
+        tryVerify(function () { return c.vm.ready })
+        c.vm.signIn("local", { name: "Home" })
+        tryVerify(function () { return c.vm.accounts.length === 1 })
+        c.vm.signIn("local", { name: "Home" })
+        tryVerify(function () { return c.vm.error === "exists" })
+        compare(c.svc.accounts.length, 1)
+        c.vm.signIn("fake", { name: "x" })
+        tryVerify(function () { return c.vm.accounts.length === 2 })
+        c.vm.signIn("fake", { name: "x" })   // signing in again to a service account is fine
+        tryVerify(function () { return !c.vm.busy && c.vm.error === "" })
+        compare(c.svc.accounts.length, 2)
+    }
+
+    function test_requestSignInCanTargetAnAccount() {
+        var c = make([acc("a")], { "fake:a": "s1" })
+        c.vm.requestSignIn({ providerId: "fake", accountId: "a" })
+        compare(c.vm.signInTarget.accountId, "a")
+        verify(c.vm.signInRequested)
+        c.vm.cancelSignIn()
+        compare(c.vm.signInTarget, null)
     }
 }

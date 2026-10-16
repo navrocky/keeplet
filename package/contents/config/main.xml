@@ -23,6 +23,11 @@
       <label>Account keys shown by this widget</label>
       <default></default>
     </entry>
+    <!-- Bumped by the settings dialog after it adds or removes an account, so running widgets reload them. -->
+    <entry name="accountsRevision" type="Int">
+      <label>Accounts changed counter</label>
+      <default>0</default>
+    </entry>
   </group>
 
   <!-- Legacy single-account layout (stages 1-2). Read once by AccountsService.migrateLegacy and cleared. -->
