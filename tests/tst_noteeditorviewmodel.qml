@@ -441,9 +441,36 @@ TestCase {
         c.editor.toggleItem(0)
         c.editor.convertToText()
         compare(c.editor.note.type, "NOTE")
-        compare(c.editor.note.text, "milk\nbread")
+        compare(c.editor.note.text, "- [x] milk\n- [ ] bread")
         compare(c.editor.openIndexes.length, 0)
         c.editor.undo()
         compare(c.editor.note.type, "LIST")
+    }
+
+    function test_convertingKeepsCheckMarks() {
+        var c = open(items5())
+        c.editor.convertToText()
+        compare(c.editor.note.text, "- [ ] a\n- [x] b\n- [ ] c\n  - [ ] c1\n- [x] d")
+        c.editor.convertToList()
+        compare(c.editor.note.items.map(function (i) { return (i.checked ? "x" : "-") + i.indent + i.text }).join(), "-0a,x0b,-0c,-1c1,x0d")
+    }
+
+    function test_listWithoutCheckMarksBecomesPlainText() {
+        var c = open(listData())
+        c.editor.convertToText()
+        compare(c.editor.note.text, "one\ntwo")
+    }
+
+    function test_textWithMarkersBecomesAChecklist() {
+        var c = open(noteData({ text: "[x] done\n[ ] open\n* [X] star\nplain" }))
+        c.editor.convertToList()
+        compare(c.editor.note.items.map(function (i) { return (i.checked ? "x" : "-") + i.text }).join(), "xdone,-open,xstar,-plain")
+    }
+
+    function test_asTextAlwaysHasMarkersForLists() {
+        var c = open(listData())
+        compare(c.editor.asText(), "- [ ] one\n- [ ] two")
+        c = open(noteData())
+        compare(c.editor.asText(), "Body")
     }
 }

@@ -59,7 +59,7 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   when unchecked. `NoteScreen` positions rows by hand (one delegate per item, `y` from section and place): checking,
   dragging (handle at the row start, `moveItemInSection`) and folding the Done section are animations of `y`, `opacity`
   and height. Structural edits (add/remove/clear/move) set `list.instant` because delegates are bound to indexes.
-- `convertToList` / `convertToText` (capability `convertType`) switch the note type; `clearDone` removes checked items.
+- `convertToList` / `convertToText` (capability `convertType`) switch the note type, keeping check marks as Markdown task lines (`- [x] text`, `core/checklist.js`; plain lines when nothing is checked); `asText` feeds "Copy as text"; `clearDone` removes checked items.
 
 ## List interactions
 - Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a right-button `TapHandler`

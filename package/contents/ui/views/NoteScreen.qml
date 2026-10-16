@@ -37,6 +37,15 @@ Rectangle {
     color: colored ? KeepColors.background(note.color, dark) : Kirigami.Theme.backgroundColor
     Behavior on color { ColorAnimation { duration: Kirigami.Units.longDuration } }
 
+    // Hidden field used only to reach the clipboard (plain QML has no clipboard API).
+    TextEdit { id: clipboard; visible: false }
+    function copyText() {
+        clipboard.text = editor.asText()
+        clipboard.selectAll()
+        clipboard.copy()
+        clipboard.text = ""
+    }
+
     function showColors() { colorPopup.open() }
 
     // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y belong to the note's history, not to a single text field.
@@ -211,6 +220,11 @@ Rectangle {
                         icon: screen.isList ? "text-plain" : "view-list-details"
                         visible: screen.editor.canConvert
                         onClicked: screen.isList ? screen.editor.convertToText() : screen.editor.convertToList()
+                    }
+                    PlasmaExtras.MenuItem {
+                        text: i18n("Copy as text")
+                        icon: "edit-copy"
+                        onClicked: screen.copyText()
                     }
                     PlasmaExtras.MenuItem {
                         text: i18n("Clear completed items")

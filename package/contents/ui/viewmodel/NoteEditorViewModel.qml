@@ -1,5 +1,6 @@
 import QtQuick
 import "../../code/core/history.js" as History
+import "../../code/core/checklist.js" as Checklist
 
 // ViewModel of the open note: a working copy, undo/redo over everything in the note (title, text, items,
 // color, labels, pin, archive, trash) and autosave through NotesViewModel. No visuals, no user-facing text.
@@ -180,28 +181,32 @@ QtObject {
         })
     }
 
-    // Text note -> checklist: every non-empty line becomes an item.
+    // Text note -> checklist: every non-empty line becomes an item; "[x] ..." / "- [ ] ..." lines carry their check mark.
     function convertToList() {
         if (!canConvert || note.type === "LIST")
             return
         _change("", function (n) {
-            var lines = n.text.split("\n").filter(function (l) { return l.trim() !== "" })
-            if (lines.length === 0)
-                lines = [""]
+            var items = Checklist.fromText(n.text, nestedItems)
             n.type = "LIST"
-            n.items = lines.map(function (l) { return { id: "", text: l, checked: false, indent: 0 } })
+            n.items = items.length > 0 ? items : [{ id: "", text: "", checked: false, indent: 0 }]
             n.text = ""
         })
     }
-    // Checklist -> text note: one line per item.
+    // Checklist -> text note: one line per item, "- [x] ..." when anything is checked, plain lines otherwise.
     function convertToText() {
         if (!canConvert || note.type !== "LIST")
             return
         _change("", function (n) {
             n.type = "NOTE"
-            n.text = n.items.map(function (it) { return it.text }).join("\n")
+            n.text = Checklist.toText(n.items, false)
             n.items = []
         })
+    }
+    // The note as text for the clipboard; checklists always carry their Markdown check marks.
+    function asText() {
+        if (note === null)
+            return ""
+        return note.type === "LIST" ? Checklist.toText(note.items, true) : note.text
     }
 
     function undo() {
