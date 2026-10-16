@@ -207,6 +207,18 @@ Rectangle {
                         onClicked: screen.editor.setArchived(!(screen.note !== null && screen.note.archived))
                     }
                     PlasmaExtras.MenuItem {
+                        text: screen.isList ? i18n("Convert to text") : i18n("Convert to list")
+                        icon: screen.isList ? "text-plain" : "view-list-details"
+                        visible: screen.editor.canConvert
+                        onClicked: screen.isList ? screen.editor.convertToText() : screen.editor.convertToList()
+                    }
+                    PlasmaExtras.MenuItem {
+                        text: i18n("Clear completed items")
+                        icon: "edit-clear-all"
+                        visible: screen.editor.hasDone
+                        onClicked: list.structural(function () { screen.editor.clearDone() })
+                    }
+                    PlasmaExtras.MenuItem {
                         text: i18n("Move to trash")
                         icon: "user-trash"
                         onClicked: screen.editor.trash()
@@ -267,63 +279,236 @@ Rectangle {
                     Keys.onPressed: event => screen.handleUndoKeys(event)
                 }
 
+                // Checklist: unchecked items on top, then a collapsible "Done" section. Rows are positioned by
+                // hand (one delegate per item, y computed from its section and place), so checking an item,
+                // dragging it or folding the section is just a change of y/opacity/height and animates.
                 // The model is the item *count*: delegates read their item by index, so typing never
                 // recreates them and the text field keeps focus.
-                Repeater {
-                    id: items
-                    model: screen.isList ? screen.note.items.length : 0
+                Item {
+                    id: list
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: contentHeight
+                    visible: screen.isList
+                    clip: true
 
-                    delegate: RowLayout {
-                        id: row
-                        required property int index
-                        readonly property var item: screen.note !== null && screen.note.items[index]
-                                                    ? screen.note.items[index] : null
+                    readonly property int rowHeight: Math.max(Kirigami.Units.gridUnit * 2, probe.implicitHeight)
+                    readonly property int openCount: screen.editor.openIndexes.length
+                    readonly property int doneCount: screen.editor.doneIndexes.length
+                    readonly property int doneTop: openCount * rowHeight + rowHeight
+                    property bool doneExpanded: true
+                    // True while the items themselves change (add, remove, move, clear): rows then jump
+                    // instead of sliding, because delegates are bound to indexes, not to items.
+                    property bool instant: false
+                    property real contentHeight: openCount * rowHeight
+                                                 + (doneCount > 0 ? rowHeight + (doneExpanded ? doneCount * rowHeight : 0) : 0)
+                    Behavior on contentHeight {
+                        enabled: !list.instant
+                        NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
+                    }
 
-                        Layout.fillWidth: true
-                        Layout.leftMargin: (item ? item.indent : 0) * Kirigami.Units.gridUnit
+                    // Item index -> {done, pos}: its section and place in it.
+                    readonly property var places: {
+                        var out = []
+                        screen.editor.openIndexes.forEach(function (idx, p) { out[idx] = { done: false, pos: p } })
+                        screen.editor.doneIndexes.forEach(function (idx, p) { out[idx] = { done: true, pos: p } })
+                        return out
+                    }
 
-                        function focusField() { field.forceActiveFocus() }
+                    // Drag of one row (by its handle) inside its section.
+                    property int dragIndex: -1
+                    property real dragOffset: 0
+                    readonly property var dragPlace: dragIndex >= 0 && places[dragIndex] ? places[dragIndex] : null
+                    readonly property int dragTo: {
+                        if (dragPlace === null)
+                            return -1
+                        var count = dragPlace.done ? doneCount : openCount
+                        return Math.max(0, Math.min(count - 1, Math.round(dragPlace.pos + dragOffset / rowHeight)))
+                    }
 
-                        QQC2.CheckBox {
-                            checked: row.item !== null && row.item.checked
-                            enabled: screen.editor.editable
-                            onToggled: screen.editor.toggleItem(row.index)
+                    function sectionTop(done) { return done ? doneTop : 0 }
+                    // Place of an item in its section while a drag opens a gap for the carried row.
+                    function slotOf(index) {
+                        var pl = places[index]
+                        if (!pl)
+                            return 0
+                        var p = pl.pos
+                        if (dragPlace !== null && index !== dragIndex && pl.done === dragPlace.done) {
+                            if (dragPlace.pos < dragTo && p > dragPlace.pos && p <= dragTo)
+                                p--
+                            else if (dragTo < dragPlace.pos && p >= dragTo && p < dragPlace.pos)
+                                p++
                         }
+                        return p
+                    }
+                    function endDrag() {
+                        var pl = dragPlace
+                        var to = dragTo
+                        if (pl !== null && to !== pl.pos)
+                            structural(function () { screen.editor.moveItemInSection(pl.done, pl.pos, to) })
+                        dragIndex = -1
+                        dragOffset = 0
+                    }
+                    function structural(change) {
+                        instant = true
+                        change()
+                        instant = false
+                    }
 
-                        QQC2.TextField {
-                            id: field
-                            Layout.fillWidth: true
-                            text: row.item ? row.item.text : ""
-                            readOnly: !screen.editor.editable
-                            color: screen.textColor
-                            opacity: row.item !== null && row.item.checked ? 0.6 : 1
-                            font.strikeout: row.item !== null && row.item.checked
-                            background: null
-                            onTextEdited: screen.editor.setItemText(row.index, text)
-                            onAccepted: screen.editor.addItem(row.index)
-                            Keys.onPressed: event => {
-                                screen.handleUndoKeys(event)
-                                if (event.accepted)
-                                    return
-                                if (event.key === Qt.Key_Tab) {
-                                    screen.editor.setItemIndent(row.index, 1)
-                                    event.accepted = true
-                                } else if (event.key === Qt.Key_Backtab) {
-                                    screen.editor.setItemIndent(row.index, 0)
-                                    event.accepted = true
-                                } else if (event.key === Qt.Key_Backspace && text === "") {
-                                    screen.editor.removeItem(row.index)
-                                    event.accepted = true
+                    // Only to measure a row.
+                    QQC2.TextField { id: probe; visible: false }
+
+                    Repeater {
+                        id: items
+                        model: screen.isList ? screen.note.items.length : 0
+
+                        delegate: Item {
+                            id: row
+                            required property int index
+                            readonly property var item: screen.note !== null && screen.note.items[index]
+                                                        ? screen.note.items[index] : null
+                            readonly property bool done: item !== null && item.checked
+                            readonly property bool dragging: list.dragIndex === index
+                            readonly property bool hidden: done && !list.doneExpanded
+
+                            function focusField() { field.forceActiveFocus() }
+
+                            width: list.width
+                            height: list.rowHeight
+                            z: dragging ? 10 : 0
+                            y: {
+                                var pl = list.places[index]
+                                if (!pl)
+                                    return 0
+                                if (dragging)
+                                    return list.sectionTop(pl.done) + pl.pos * list.rowHeight + list.dragOffset
+                                return list.sectionTop(pl.done) + list.slotOf(index) * list.rowHeight
+                            }
+                            Behavior on y {
+                                enabled: !list.instant && !row.dragging
+                                NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
+                            }
+                            opacity: hidden ? 0 : 1
+                            visible: opacity > 0
+                            Behavior on opacity { NumberAnimation { duration: Kirigami.Units.longDuration } }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: (row.item ? row.item.indent : 0) * Kirigami.Units.gridUnit
+                                spacing: 0
+
+                                Kirigami.Icon {
+                                    id: handle
+                                    visible: screen.editor.editable
+                                    source: "handle-sort"
+                                    opacity: row.dragging ? 1 : 0.5
+                                    Layout.preferredWidth: Kirigami.Units.iconSizes.small
+                                    Layout.preferredHeight: Kirigami.Units.iconSizes.small
+                                    HoverHandler { cursorShape: Qt.OpenHandCursor }
+                                    DragHandler {
+                                        target: null
+                                        xAxis.enabled: false
+                                        cursorShape: Qt.ClosedHandCursor
+                                        onActiveChanged: {
+                                            if (active) {
+                                                list.dragOffset = 0
+                                                list.dragIndex = row.index
+                                            } else {
+                                                list.endDrag()
+                                            }
+                                        }
+                                        onActiveTranslationChanged: {
+                                            if (active)
+                                                list.dragOffset = activeTranslation.y
+                                        }
+                                    }
+                                }
+
+                                QQC2.CheckBox {
+                                    checked: row.item !== null && row.item.checked
+                                    enabled: screen.editor.editable
+                                    onToggled: screen.editor.toggleItem(row.index)
+                                }
+
+                                QQC2.TextField {
+                                    id: field
+                                    Layout.fillWidth: true
+                                    text: row.item ? row.item.text : ""
+                                    readOnly: !screen.editor.editable
+                                    color: screen.textColor
+                                    opacity: row.done ? 0.6 : 1
+                                    font.strikeout: row.done
+                                    background: null
+                                    onTextEdited: screen.editor.setItemText(row.index, text)
+                                    onAccepted: list.structural(function () { screen.editor.addItem(row.index) })
+                                    Keys.onPressed: event => {
+                                        screen.handleUndoKeys(event)
+                                        if (event.accepted)
+                                            return
+                                        if (event.key === Qt.Key_Tab) {
+                                            screen.editor.setItemIndent(row.index, 1)
+                                            event.accepted = true
+                                        } else if (event.key === Qt.Key_Backtab) {
+                                            screen.editor.setItemIndent(row.index, 0)
+                                            event.accepted = true
+                                        } else if (event.key === Qt.Key_Backspace && text === "") {
+                                            list.structural(function () { screen.editor.removeItem(row.index) })
+                                            event.accepted = true
+                                        }
+                                    }
+                                }
+
+                                PlasmaComponents.ToolButton {
+                                    visible: screen.editor.editable
+                                    icon.name: "edit-delete"
+                                    onClicked: list.structural(function () { screen.editor.removeItem(row.index) })
+                                    PlasmaComponents.ToolTip.text: i18n("Remove item")
+                                    PlasmaComponents.ToolTip.visible: hovered
                                 }
                             }
                         }
+                    }
 
-                        PlasmaComponents.ToolButton {
-                            visible: screen.editor.editable
-                            icon.name: "edit-delete"
-                            onClicked: screen.editor.removeItem(row.index)
-                            PlasmaComponents.ToolTip.text: i18n("Remove item")
-                            PlasmaComponents.ToolTip.visible: hovered
+                    // Header of the Done section.
+                    Item {
+                        id: doneHeader
+                        y: list.openCount * list.rowHeight
+                        width: list.width
+                        height: list.rowHeight
+                        visible: list.doneCount > 0
+
+                        RowLayout {
+                            anchors.fill: parent
+                            spacing: Kirigami.Units.smallSpacing
+
+                            PlasmaComponents.ToolButton {
+                                Layout.fillWidth: true
+                                // Left-aligned label with the arrow.
+                                contentItem: RowLayout {
+                                    spacing: Kirigami.Units.smallSpacing
+                                    Kirigami.Icon {
+                                        source: "arrow-right"
+                                        rotation: list.doneExpanded ? 90 : 0
+                                        Behavior on rotation { NumberAnimation { duration: Kirigami.Units.longDuration } }
+                                        Layout.preferredWidth: Kirigami.Units.iconSizes.small
+                                        Layout.preferredHeight: Kirigami.Units.iconSizes.small
+                                    }
+                                    PlasmaComponents.Label {
+                                        Layout.fillWidth: true
+                                        text: i18n("Done (%1)", list.doneCount)
+                                        color: screen.textColor
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                                onClicked: list.doneExpanded = !list.doneExpanded
+                            }
+
+                            PlasmaComponents.ToolButton {
+                                visible: screen.editor.editable
+                                icon.name: "edit-clear-all"
+                                onClicked: list.structural(function () { screen.editor.clearDone() })
+                                PlasmaComponents.ToolTip.text: i18n("Clear completed items")
+                                PlasmaComponents.ToolTip.visible: hovered
+                            }
                         }
                     }
                 }
@@ -333,7 +518,12 @@ Rectangle {
                     icon.name: "list-add"
                     text: i18n("Add item")
                     flat: true
-                    onClicked: screen.editor.addItem(screen.note.items.length - 1)
+                    onClicked: {
+                        var open = screen.editor.openIndexes
+                        list.structural(function () {
+                            screen.editor.addItem(open.length > 0 ? open[open.length - 1] : -1)
+                        })
+                    }
                 }
 
                 Flow {
