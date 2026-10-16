@@ -94,5 +94,11 @@ use the same field). The client writes it with `session.reorder`; **moving a not
 not yet verified against a real server** (`spike/run-write.sh` has a step for it: 4e/4f). If the server ignores
 it, the order simply snaps back at the next sync.
 
-_Still open:_ the meaning of `writeResults`, reordering existing items (sortValue renumbering), creating and
+_Converting a note to a list and back_ changes the top node's `type` and rewrites its children (a text note
+has one body `LIST_ITEM`; a list has one per item). **Not yet verified against a real server.** Reordering
+checklist items renumbers all `sortValue`s of that list (existing values cannot express a new order); also
+unverified. Because the server pushes checked items to a large negative `sortValue`, after a sync the checked items
+are at the end of the array; the editor shows them in the Done section in that order.
+
+_Still open:_ the meaning of `writeResults`, creating and
 renaming labels (`userInfo.labels`), images and drawings.

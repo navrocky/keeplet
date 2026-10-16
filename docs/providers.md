@@ -17,7 +17,7 @@ A provider is a JS module (`.pragma library`) exporting:
 | Export | Meaning |
 |---|---|
 | `id`, `name`, `icon` | stable id (`"keep"`), display name, Breeze icon name |
-| `capabilities` | `labels: "multi" \| "single" \| "none"`, `colors`, `checklists`, `nestedItems`, `pinned`, `archive`, `trash`, `images`, `offlineEdit` (booleans except `labels` and `colors`; `colors` is the list of supported color names, empty = no colors; the first entry is the "no color" default) |
+| `capabilities` | `labels: "multi" \| "single" \| "none"`, `colors`, `checklists`, `nestedItems`, `convertType`, `pinned`, `archive`, `trash`, `images`, `offlineEdit` (booleans except `labels` and `colors`; `colors` is the list of supported color names, empty = no colors; the first entry is the "no color" default) |
 | `credentialFields` | `[{key, label, secret}]` — the sign-in form is generated from this |
 | `signIn(creds)` | `Promise<{accountId, displayName, secret, meta}>`; rejects with `ProviderError` (`network`, `badCredentials`, `failed`) |
 | `createSession(account, secret, options)` | returns a session (below); `options` is a test hook |

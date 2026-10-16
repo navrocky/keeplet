@@ -54,6 +54,13 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 - A new note is a *draft* in `NotesViewModel` (`draftKey` = `"<new>"`): it is created in the provider on the first
   change, the editor keeps its history, and the key stays `"<new>"` while the editor is open.
 
+- Checklist: `NoteEditorViewModel` exposes `openIndexes` / `doneIndexes` (indexes into `note.items`; they change only on
+  structure/check changes, not while typing). The array itself is never split, so a checked item keeps its relative place
+  when unchecked. `NoteScreen` positions rows by hand (one delegate per item, `y` from section and place): checking,
+  dragging (handle at the row start, `moveItemInSection`) and folding the Done section are animations of `y`, `opacity`
+  and height. Structural edits (add/remove/clear/move) set `list.instant` because delegates are bound to indexes.
+- `convertToList` / `convertToText` (capability `convertType`) switch the note type; `clearDone` removes checked items.
+
 ## List interactions
 - Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a right-button `TapHandler`
   (context menu) and one `DragHandler` with only the x axis enabled (so vertical drags keep scrolling). Delegates
