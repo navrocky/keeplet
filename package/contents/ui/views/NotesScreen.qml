@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import QtQuick.Controls as QQC2
 import org.kde.plasma.components as PlasmaComponents
+import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
 
 // Notes screen. Presentation only: reads and commands go through the ViewModels.
@@ -483,59 +484,55 @@ Item {
         z: 100
     }
 
-    QQC2.Menu {
+    PlasmaExtras.Menu {
         id: noteMenu
         property var note: null
         readonly property bool inTrash: note !== null && note.trashed
         readonly property var colors: note !== null && view.vm.capabilities(note.accountKey)
                                       ? view.vm.capabilities(note.accountKey).colors : []
 
+        // The menu is a window of its own (native look, shadow); it opens at the pointer.
         function openFor(n, item, position) {
             note = n
-            popup(item, position.x, position.y)
+            visualParent = item
+            open(Math.round(position.x), Math.round(position.y))
         }
 
-        QQC2.MenuItem {
+        PlasmaExtras.MenuItem {
             visible: !noteMenu.inTrash
-            height: visible ? implicitHeight : 0
             text: noteMenu.note !== null && noteMenu.note.pinned ? i18n("Unpin") : i18n("Pin")
-            icon.name: "pin"
-            onTriggered: view.vm.setPinned(noteMenu.note.key, !noteMenu.note.pinned)
+            icon: "pin"
+            onClicked: view.vm.setPinned(noteMenu.note.key, !noteMenu.note.pinned)
         }
-        QQC2.MenuItem {
+        PlasmaExtras.MenuItem {
             visible: !noteMenu.inTrash && noteMenu.colors.length > 0
-            height: visible ? implicitHeight : 0
             text: i18n("Color…")
-            icon.name: "color-management"
-            onTriggered: colorPopup.openFor(noteMenu.note)
+            icon: "color-management"
+            onClicked: colorPopup.openFor(noteMenu.note)
         }
-        QQC2.MenuItem {
+        PlasmaExtras.MenuItem {
             visible: !noteMenu.inTrash
-            height: visible ? implicitHeight : 0
             text: noteMenu.note !== null && noteMenu.note.archived ? i18n("Unarchive") : i18n("Archive")
-            icon.name: "archive-insert"
-            onTriggered: view.vm.archiveNote(noteMenu.note.key, !noteMenu.note.archived)
+            icon: "archive-insert"
+            onClicked: view.vm.archiveNote(noteMenu.note.key, !noteMenu.note.archived)
         }
-        QQC2.MenuItem {
+        PlasmaExtras.MenuItem {
             visible: !noteMenu.inTrash
-            height: visible ? implicitHeight : 0
             text: i18n("Move to trash")
-            icon.name: "user-trash"
-            onTriggered: view.vm.trashNote(noteMenu.note.key)
+            icon: "user-trash"
+            onClicked: view.vm.trashNote(noteMenu.note.key)
         }
-        QQC2.MenuItem {
+        PlasmaExtras.MenuItem {
             visible: noteMenu.inTrash
-            height: visible ? implicitHeight : 0
             text: i18n("Restore")
-            icon.name: "edit-undo"
-            onTriggered: view.vm.restoreNote(noteMenu.note.key)
+            icon: "edit-undo"
+            onClicked: view.vm.restoreNote(noteMenu.note.key)
         }
-        QQC2.MenuItem {
+        PlasmaExtras.MenuItem {
             visible: noteMenu.inTrash
-            height: visible ? implicitHeight : 0
             text: i18n("Delete forever…")
-            icon.name: "edit-delete"
-            onTriggered: confirmDelete.openFor(noteMenu.note)
+            icon: "edit-delete"
+            onClicked: confirmDelete.openFor(noteMenu.note)
         }
     }
 
