@@ -34,8 +34,20 @@ Rectangle {
 
     property bool confirmDelete: false
 
-    color: colored ? KeepColors.background(note.color, dark) : Kirigami.Theme.backgroundColor
-    Behavior on color { ColorAnimation { duration: Kirigami.Units.longDuration } }
+    // The note is a rounded, colored panel (like its card in the list) inside the widget's own background.
+    color: "transparent"
+    readonly property color panelColor: colored ? KeepColors.background(note.color, dark) : Kirigami.Theme.backgroundColor
+
+    Rectangle {
+        id: panel
+        anchors.fill: parent
+        radius: Kirigami.Units.smallSpacing * 2
+        color: screen.panelColor
+        border.width: 1
+        border.color: screen.colored ? (screen.dark ? Qt.lighter(color, 1.4) : Qt.darker(color, 1.15))
+                                     : Qt.alpha(Kirigami.Theme.textColor, 0.2)
+        Behavior on color { ColorAnimation { duration: Kirigami.Units.longDuration } }
+    }
 
     // Hidden field used only to reach the clipboard (plain QML has no clipboard API).
     TextEdit { id: clipboard; visible: false }
