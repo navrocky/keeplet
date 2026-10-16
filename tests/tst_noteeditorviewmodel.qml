@@ -24,7 +24,7 @@ TestCase {
             property var accountLabels: [{ id: "L1", name: "Work", accountKey: "acc" },
                                          { id: "L2", name: "Home", accountKey: "acc" }]
             function capabilities(accountKey) {
-                return { colors: ["DEFAULT", "RED", "BLUE"], nestedItems: true, labels: labelMode }
+                return { colors: ["DEFAULT", "RED", "BLUE"], nestedItems: true, convertType: true, labels: labelMode }
             }
             function labelsOf(accountKey) {
                 return accountLabels.filter(function (l) { return l.accountKey === accountKey })
@@ -373,5 +373,77 @@ TestCase {
         compare(c.editor.accountChoices.length, 0)
         c.editor.setAccount("acc2")
         compare(c.editor.note.accountKey, "acc")
+    }
+
+    // --- sections, order, conversion
+
+    function items5() {
+        return noteData({ id: "l", key: "acc/l", type: "LIST", text: "", items: [
+            { id: "a", text: "a", checked: false, indent: 0 },
+            { id: "b", text: "b", checked: true, indent: 0 },
+            { id: "c", text: "c", checked: false, indent: 0 },
+            { id: "c1", text: "c1", checked: false, indent: 1 },
+            { id: "d", text: "d", checked: true, indent: 0 }
+        ] })
+    }
+    function texts(editor) { return editor.note.items.map(function (i) { return i.text }).join() }
+
+    function test_sectionsKeepItemOrder() {
+        var c = open(items5())
+        compare(c.editor.openIndexes.join(), "0,2,3")
+        compare(c.editor.doneIndexes.join(), "1,4")
+        c.editor.toggleItem(0)                       // first open item is done: it is first among done now
+        compare(c.editor.doneIndexes.join(), "0,1,4")
+        compare(texts(c.editor), "a,b,c,c1,d")       // the array itself does not change
+    }
+
+    function test_sectionsDoNotChangeWhileTyping() {
+        var c = open(items5())
+        var before = c.editor.openIndexes
+        c.editor.setItemText(0, "abc")
+        verify(c.editor.openIndexes === before)
+    }
+
+    function test_moveItemWithinSection() {
+        var c = open(items5())
+        c.editor.moveItemInSection(false, 0, 1)      // a goes after c (and its sub-item)
+        compare(texts(c.editor), "b,c,c1,a,d")
+        c.editor.moveItemInSection(false, 2, 0)      // a back above c
+        compare(texts(c.editor), "b,a,c,c1,d")
+        c.editor.undo()
+        c.editor.undo()
+        compare(texts(c.editor), "a,b,c,c1,d")
+    }
+
+    function test_movingAnItemWithSubitemsTakesThemAlong() {
+        var c = open(items5())
+        c.editor.moveItemInSection(false, 1, 0)      // c (+ c1) above a
+        compare(texts(c.editor), "c,c1,a,b,d")
+        compare(c.editor.note.items[1].indent, 1)
+    }
+
+    function test_clearDoneRemovesOnlyCheckedItems() {
+        var c = open(items5())
+        c.editor.clearDone()
+        compare(texts(c.editor), "a,c,c1")
+        verify(!c.editor.hasDone)
+        c.editor.undo()
+        compare(texts(c.editor), "a,b,c,c1,d")
+    }
+
+    function test_convertTextToListAndBack() {
+        var c = open(noteData({ text: "milk\n\nbread" }))
+        verify(c.editor.canConvert)
+        c.editor.convertToList()
+        compare(c.editor.note.type, "LIST")
+        compare(texts(c.editor), "milk,bread")
+        compare(c.editor.note.text, "")
+        c.editor.toggleItem(0)
+        c.editor.convertToText()
+        compare(c.editor.note.type, "NOTE")
+        compare(c.editor.note.text, "milk\nbread")
+        compare(c.editor.openIndexes.length, 0)
+        c.editor.undo()
+        compare(c.editor.note.type, "LIST")
     }
 }

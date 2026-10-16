@@ -32,6 +32,16 @@ QtObject {
     readonly property bool nestedItems: note !== null && !!notes.capabilities(note.accountKey)
                                         && !!notes.capabilities(note.accountKey).nestedItems
 
+    readonly property bool canConvert: editable && !!notes.capabilities(note.accountKey)
+                                       && !!notes.capabilities(note.accountKey).convertType
+
+    // Checklist split into sections: indexes into note.items of the unchecked / checked items, in item order
+    // (so an item keeps its relative place when it is checked and unchecked again). They change only when
+    // an item is added, removed, moved or (un)checked, never while typing, so Views can use them as models.
+    property var openIndexes: []
+    property var doneIndexes: []
+    readonly property bool hasDone: doneIndexes.length > 0
+
     // Labels of the note's account that can be switched on and off: [{id, name, on}]. Empty when the
     // provider has no labels.
     readonly property var labelChoices: {
@@ -129,6 +139,70 @@ QtObject {
     function removeItem(index) {
         _change("", function (n) { n.items.splice(index, 1) })
     }
+    // Removes every checked item (with the sub-items of a removed item).
+    function clearDone() {
+        _change("", function (n) {
+            var parentGone = false
+            n.items = n.items.filter(function (it) {
+                if (it.indent > 0)
+                    return !parentGone && !it.checked
+                parentGone = it.checked
+                return !it.checked
+            })
+        })
+    }
+
+    // Moves an item (with its sub-items) within the section it is in: `fromPos` and `toPos` are positions in
+    // openIndexes (done = false) or doneIndexes (done = true).
+    function moveItemInSection(done, fromPos, toPos) {
+        var list = done ? doneIndexes : openIndexes
+        if (fromPos === toPos || fromPos < 0 || toPos < 0 || fromPos >= list.length || toPos >= list.length)
+            return
+        var from = list[fromPos]
+        var ref = list[toPos]
+        _change("", function (n) {
+            function blockLength(i) {
+                var j = i + 1
+                if (n.items[i].indent > 0)
+                    return 1
+                while (j < n.items.length && n.items[j].indent > 0)
+                    j++
+                return j - i
+            }
+            var refItem = n.items[ref]
+            var block = n.items.splice(from, blockLength(from))
+            var at = n.items.indexOf(refItem)
+            if (toPos > fromPos)
+                at += blockLength(at)
+            if (at === 0)
+                block[0].indent = 0
+            n.items.splice.apply(n.items, [at, 0].concat(block))
+        })
+    }
+
+    // Text note -> checklist: every non-empty line becomes an item.
+    function convertToList() {
+        if (!canConvert || note.type === "LIST")
+            return
+        _change("", function (n) {
+            var lines = n.text.split("\n").filter(function (l) { return l.trim() !== "" })
+            if (lines.length === 0)
+                lines = [""]
+            n.type = "LIST"
+            n.items = lines.map(function (l) { return { id: "", text: l, checked: false, indent: 0 } })
+            n.text = ""
+        })
+    }
+    // Checklist -> text note: one line per item.
+    function convertToText() {
+        if (!canConvert || note.type !== "LIST")
+            return
+        _change("", function (n) {
+            n.type = "NOTE"
+            n.text = n.items.map(function (it) { return it.text }).join("\n")
+            n.items = []
+        })
+    }
 
     function undo() {
         var previous = History.undo(_history, _clone(note))
@@ -179,6 +253,17 @@ QtObject {
 
     // --- Internals
     function _clone(o) { return JSON.parse(JSON.stringify(o)) }
+
+    function _refreshSections() {
+        var open = [], done = []
+        if (note !== null && note.type === "LIST")
+            note.items.forEach(function (it, i) { (it.checked ? done : open).push(i) })
+        if (JSON.stringify(open) !== JSON.stringify(openIndexes))
+            openIndexes = open
+        if (JSON.stringify(done) !== JSON.stringify(doneIndexes))
+            doneIndexes = done
+    }
+    onNoteChanged: _refreshSections()
 
     function _refreshFlags() {
         canUndo = History.canUndo(_history)
