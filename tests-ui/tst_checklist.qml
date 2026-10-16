@@ -206,10 +206,12 @@ Item {
 
         function test_insertingOrRemovingAnItemMovesRowsInOneJumpNotAnimation() {
             var l = list()
-            wait(200)
+            editor.setItemText(2, "a\nb\nc")                     // rows of different heights: they report late
+            wait(300)
             var counts = watchRows()
             focusOn(0, 1)
             keyClick(Qt.Key_Return)                               // new item below a
+            verify(l.instant, "rows jump while the items are rearranged")
             wait(600)
             for (var k in counts)
                 verify(counts[k] <= 2, "row " + k + " moved in " + counts[k] + " steps")
