@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import "../package/contents/ui/viewmodel" as VM
 import "../package/contents/code/providers/fake.js" as Fake
+import "../package/contents/code/providers/local/index.js" as Local
 import "../package/contents/code/core/errors.js" as Errors
 
 TestCase {
@@ -910,5 +911,40 @@ TestCase {
         compare(ids(c.vm), before)
         compare(first(c.vm, "a").title, "Edited")
         compare(c.vm.noteByKey("fake:me@x/a").title, "Edited")
+    }
+
+    // --- persistent provider (local notes)
+
+    readonly property var localAcc: ({ key: "local:home", providerId: "local", accountId: "home", displayName: "home", meta: {} })
+
+    function localEntry(account) {
+        return {
+            account: account,
+            provider: { id: Local.id, name: Local.name, icon: Local.icon, capabilities: Local.capabilities },
+            session: Local.createSession(account, "local", {})
+        }
+    }
+
+    function test_persistentAccountIsSavedAtOnceOnEdit() {
+        var c = make([localEntry(localAcc)])
+        tryVerify(function () { return c.vm.loaded })
+        var flushedBefore = c.cache.flushed
+        var key = c.vm.saveNote({ id: "", accountKey: "local:home", type: "NOTE", title: "Mine", text: "x",
+                                  items: [], labels: [], color: "DEFAULT", pinned: false, archived: false, trashed: false })
+        verify(key !== "")
+        // No flushCache() call and no wait for the quiet period.
+        verify(c.cache.store["local:home"].indexOf("Mine") >= 0)
+        verify(c.cache.flushed > flushedBefore)
+    }
+
+    function test_persistentAccountWithUnreadableDataIsLocked() {
+        var c = make([localEntry(localAcc)], true)
+        c.cache.store["local:home"] = "{not json"
+        var accounts2 = accountsComp.createObject(tc, { sessions: [localEntry(localAcc)] })
+        var vm = vmComp.createObject(tc, { accounts: accounts2, cache: c.cache })
+        tryVerify(function () { return vm.error === "storage" })
+        verify(!vm.canWrite("local:home"))
+        compare(vm.saveNote({ id: "", accountKey: "local:home", type: "NOTE", title: "x", text: "", items: [], labels: [] }), "")
+        compare(c.cache.store["local:home"], "{not json")   // the broken data is left alone
     }
 }

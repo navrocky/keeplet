@@ -86,6 +86,14 @@ QtObject {
         if (!cache)
             return
         _cacheDirty[accountKey] = true
+        // The state of a persistent provider (local notes) is the only copy: written at once, not after a quiet period.
+        var a = _accs[accountKey]
+        if (a && a.provider.capabilities.persistent) {
+            flushCache()
+            if (typeof cache.flush === "function")
+                cache.flush()
+            return
+        }
         _cacheTimer.restart()
     }
     function flushCache() {
@@ -142,7 +150,7 @@ QtObject {
     // Whether notes of this account can be edited (provider capability).
     function canWrite(accountKey) {
         var a = _accs[accountKey]
-        return !!a && !!a.provider.capabilities.write && typeof a.session.commit === "function"
+        return !!a && !a.broken && !!a.provider.capabilities.write && typeof a.session.commit === "function"
     }
 
     // Applies an edited note (or a new one: empty `id`, `accountKey` of the target account) at once and
@@ -534,7 +542,7 @@ QtObject {
 
     function _refreshAccount(key) {
         var a = _accs[key]
-        if (!a || a.syncing)
+        if (!a || a.syncing || a.broken)
             return
         a.syncing = true
         a.error = null
@@ -752,6 +760,15 @@ QtObject {
         if (!a)
             return
         var loading = cache ? cache.load(key) : Promise.resolve("")
+        // For a persistent provider the stored state is the data: when it cannot be read the account is
+        // locked (no edits, no sync) so that an empty state never overwrites it.
+        var persistent = !!a.provider.capabilities.persistent
+        function broken(e) {
+            console.warn("Keeplet: stored data of", key, "is unreadable:", e)
+            a.broken = true
+            a.error = { kind: "storage", detail: "" }
+            _updateStatus()
+        }
         loading.then(function (json) {
             // The account may have been removed or replaced while the cache was read.
             if (_accs[key] !== a)
@@ -764,13 +781,21 @@ QtObject {
                         a.loaded = true
                         _rebuild()
                         _updateStatus()
+                    } else if (persistent) {
+                        broken("unrecognized format")
                     }
                 } catch (e) {
-                    console.warn("Keeplet: ignoring corrupt cache for", key, e)
+                    if (persistent)
+                        broken(e)
+                    else
+                        console.warn("Keeplet: ignoring corrupt cache for", key, e)
                 }
             }
         }, function (e) {
-            console.warn("Keeplet: cache read failed for", key, e)
+            if (persistent)
+                broken(e)
+            else
+                console.warn("Keeplet: cache read failed for", key, e)
         }).then(function () {
             if (_accs[key] === a)
                 _refreshAccount(key)
