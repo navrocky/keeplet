@@ -33,3 +33,9 @@ function fromText(text, nested) {
     })
     return items
 }
+
+// A whole note as text: title, blank line, body (checklists with Markdown check marks, always).
+function noteText(note) {
+    var body = note.type === "LIST" ? toText(note.items, true) : (note.text || "")
+    return [note.title || "", body].filter(function (p) { return p !== "" }).join("\n\n")
+}

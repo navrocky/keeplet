@@ -202,11 +202,11 @@ QtObject {
             n.items = []
         })
     }
-    // The note as text for the clipboard; checklists always carry their Markdown check marks.
+    // The note as text for the clipboard: title, then the body (checklists with Markdown check marks).
     function asText() {
         if (note === null)
             return ""
-        return note.type === "LIST" ? Checklist.toText(note.items, true) : note.text
+        return Checklist.noteText(note)
     }
 
     function undo() {

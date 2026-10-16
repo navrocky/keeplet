@@ -1,5 +1,6 @@
 import QtQuick
 import "../../code/core/workspace.js" as Workspace
+import "../../code/core/checklist.js" as Checklist
 
 // ViewModel for the notes list across all accounts shown by this widget.
 // Owns per-account provider state, exposes the merged and filtered notes and the commands.
@@ -448,6 +449,12 @@ QtObject {
             return false
         _remember(plan.kind, plan.note, plan.name)
         return updateNote(noteKey, { labels: plan.labels })
+    }
+
+    // A note as text for the clipboard ("" for an unknown key): title and body, checklists with "- [x]" marks.
+    function noteText(noteKey) {
+        var note = noteByKey(noteKey)
+        return note ? Checklist.noteText(note) : ""
     }
 
     // --- Internals

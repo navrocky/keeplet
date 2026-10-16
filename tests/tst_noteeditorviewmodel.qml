@@ -469,8 +469,8 @@ TestCase {
 
     function test_asTextAlwaysHasMarkersForLists() {
         var c = open(listData())
-        compare(c.editor.asText(), "- [ ] one\n- [ ] two")
+        compare(c.editor.asText(), "Title\n\n- [ ] one\n- [ ] two")
         c = open(noteData())
-        compare(c.editor.asText(), "Body")
+        compare(c.editor.asText(), "Title\n\nBody")
     }
 }

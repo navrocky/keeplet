@@ -551,6 +551,15 @@ Item {
         z: 100
     }
 
+    // Hidden field used only to reach the clipboard (plain QML has no clipboard API).
+    TextEdit { id: clipboard; visible: false }
+    function copyToClipboard(text) {
+        clipboard.text = text
+        clipboard.selectAll()
+        clipboard.copy()
+        clipboard.text = ""
+    }
+
     PlasmaExtras.Menu {
         id: noteMenu
         property var note: null
@@ -576,6 +585,11 @@ Item {
             text: i18n("Color…")
             icon: "color-management"
             onClicked: colorPopup.openFor(noteMenu.note)
+        }
+        PlasmaExtras.MenuItem {
+            text: i18n("Copy as text")
+            icon: "edit-copy"
+            onClicked: view.copyToClipboard(view.vm.noteText(noteMenu.note.key))
         }
         PlasmaExtras.MenuItem {
             visible: !noteMenu.inTrash

@@ -836,4 +836,13 @@ TestCase {
         c.vm.saveNote(note)
         compare(visibleIds(c.vm), "P,n20,n40,n30")      // the edit did not undo the move
     }
+
+    function test_noteTextForTheClipboard() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        var n = c.vm.noteByKey("fake:me@x/a")
+        var text = c.vm.noteText("fake:me@x/a")
+        verify(text.indexOf(n.title) === 0)
+        compare(c.vm.noteText("missing"), "")
+    }
 }
