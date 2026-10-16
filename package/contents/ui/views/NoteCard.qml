@@ -17,6 +17,9 @@ Rectangle {
     readonly property bool colored: KeepColors.has(note.color)
     readonly property color textColor: colored ? KeepColors.textOn(note.color, dark) : Kirigami.Theme.textColor
     readonly property int maxItems: 6
+    // Like the editor: open items first, finished ones are only counted.
+    readonly property var openItems: card.note.type === "LIST" ? card.note.items.filter(function (i) { return !i.checked }) : []
+    readonly property int doneCount: card.note.type === "LIST" ? card.note.items.length - openItems.length : 0
 
     color: colored ? KeepColors.background(note.color, dark) : Kirigami.Theme.alternateBackgroundColor
     radius: Kirigami.Units.smallSpacing * 2
@@ -64,23 +67,28 @@ Rectangle {
         }
 
         Repeater {
-            model: card.note.type === "LIST" ? card.note.items.slice(0, card.maxItems) : []
+            model: card.openItems.slice(0, card.maxItems)
 
             PlasmaComponents.Label {
                 required property var modelData
                 Layout.fillWidth: true
                 Layout.leftMargin: modelData.indent * Kirigami.Units.gridUnit
-                text: (modelData.checked ? "☑ " : "☐ ") + modelData.text
+                text: "☐ " + modelData.text
                 color: card.textColor
-                opacity: modelData.checked ? 0.6 : 1
-                font.strikeout: modelData.checked
                 elide: Text.ElideRight
             }
         }
 
         PlasmaComponents.Label {
-            visible: card.note.type === "LIST" && card.note.items.length > card.maxItems
-            text: i18np("+ %1 more item", "+ %1 more items", card.note.items.length - card.maxItems)
+            visible: card.openItems.length > card.maxItems
+            text: i18np("+ %1 more item", "+ %1 more items", card.openItems.length - card.maxItems)
+            color: card.textColor
+            opacity: 0.7
+        }
+
+        PlasmaComponents.Label {
+            visible: card.doneCount > 0
+            text: i18np("☑ %1 done", "☑ %1 done", card.doneCount)
             color: card.textColor
             opacity: 0.7
         }
