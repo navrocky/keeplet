@@ -344,10 +344,30 @@ Item {
                 dragNoteKey: dragLayer.active ? dragLayer.noteKey : ""
             }
 
+            ParallelAnimation {
+                id: slideIn
+                NumberAnimation {
+                    target: slide; property: "x"; from: -listScroll.width * 0.4; to: 0
+                    duration: Kirigami.Units.veryLongDuration; easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: listScroll; property: "opacity"; from: 0; to: 1
+                    duration: Kirigami.Units.veryLongDuration; easing.type: Easing.OutCubic
+                }
+            }
+            Connections {
+                target: view.vm
+                function onSelectedChanged() { slideIn.restart() }
+            }
+
             PlasmaComponents.ScrollView {
+                id: listScroll
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                clip: true
 
+                // Switching the group: the list slides out of the rail to the right.
+                transform: Translate { id: slide }
                 ListView {
                     id: list
                     model: view.vm.notes

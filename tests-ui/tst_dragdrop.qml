@@ -83,6 +83,18 @@ Item {
             notes.closeNote()
         }
 
+        function test_switchingTheGroupSlidesTheListInAndSettles() {
+            var scroll = find(root, function (i) { return i.hasOwnProperty("transform") && i.hasOwnProperty("contentItem")
+                                                          && i.contentItem && i.contentItem.hasOwnProperty("contentY") && i.width > 200 })
+            verify(scroll, "notes scroll view")
+            notes.select("label:fake:me|L2")
+            tryVerify(function () { return scroll.opacity < 1 || scroll.transform[0].x < 0 }, 500)   // it starts off the rail
+            tryCompare(scroll, "opacity", 1)
+            compare(scroll.transform[0].x, 0)
+            notes.select("all")
+            tryCompare(scroll, "opacity", 1)
+        }
+
         function test_dragCardOntoLabelAddsIt() {
             var from = card("n1")
             var to = group("label:fake:me|L2")
