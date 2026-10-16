@@ -405,6 +405,22 @@ Rectangle {
                         return out
                     }
 
+                    // Visual order of the rows that can take the cursor: open items, then done ones when unfolded.
+                    function visualOrder() {
+                        return screen.editor.openIndexes.concat(doneExpanded ? screen.editor.doneIndexes : [])
+                    }
+                    // Item index next to `index` in visual order (dir -1 / +1), -1 at the ends.
+                    function neighbor(index, dir) {
+                        var order = visualOrder()
+                        var at = order.indexOf(index) + dir
+                        return at >= 0 && at < order.length ? order[at] : -1
+                    }
+                    function focusItem(index, x, edge) {
+                        var target = items.itemAt(index)
+                        if (target)
+                            target.focusField(x, edge)
+                    }
+
                     function sectionTopOf(done) { return done ? doneTop : 0 }
                     function sectionHeightOf(done) { return done ? doneHeight : openHeight }
 
@@ -438,7 +454,18 @@ Rectangle {
                             readonly property bool dragging: list.dragIndex === index
                             readonly property bool hidden: done && !list.doneExpanded
 
-                            function focusField() { field.forceActiveFocus() }
+                            // Focus the field; `x` / `edge` ("first" or "last" line) put the cursor under that column,
+                            // without them the cursor goes to the end of the text.
+                            function focusField(x, edge) {
+                                field.forceActiveFocus()
+                                if (edge === undefined) {
+                                    field.cursorPosition = field.length
+                                } else {
+                                    var y = edge === "first" ? field.positionToRectangle(0).y + 1
+                                                             : field.positionToRectangle(field.length).y + 1
+                                    field.cursorPosition = field.positionAt(x, y)
+                                }
+                            }
 
                             width: list.width
                             height: Math.max(list.rowHeight, line.implicitHeight)
@@ -540,11 +567,32 @@ Rectangle {
                                         screen.handleUndoKeys(event)
                                         if (event.accepted)
                                             return
-                                        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
-                                                && !(event.modifiers & Qt.ShiftModifier)) {
-                                            // Enter starts the next item; Shift+Enter breaks the line inside this one.
+                                        var plain = !(event.modifiers & (Qt.ShiftModifier | Qt.ControlModifier | Qt.AltModifier))
+                                        var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                                        var oneCursor = selectionStart === selectionEnd
+                                        if (enter && (event.modifiers & Qt.ShiftModifier)) {
+                                            // Shift+Enter always breaks the line.
+                                            insert(cursorPosition, "\n")
+                                            event.accepted = true
+                                        } else if (enter && plain && oneCursor && length > 0 && cursorPosition === 0) {
+                                            // At the start: a new item above takes the cursor.
+                                            list.structural(function () { screen.editor.addItemAbove(row.index) })
+                                            event.accepted = true
+                                        } else if (enter && plain && oneCursor && cursorPosition === length) {
+                                            // At the end (or in an empty item): a new item below.
                                             list.structural(function () { screen.editor.addItem(row.index) })
                                             event.accepted = true
+                                        } else if ((event.key === Qt.Key_Up || event.key === Qt.Key_Down) && plain) {
+                                            // On the first / last line the arrows move to the neighbouring item.
+                                            var up = event.key === Qt.Key_Up
+                                            var edgeY = up ? positionToRectangle(0).y : positionToRectangle(length).y
+                                            var onEdge = Math.abs(cursorRectangle.y - edgeY) < cursorRectangle.height / 2
+                                            if (onEdge) {
+                                                var other = list.neighbor(row.index, up ? -1 : 1)
+                                                if (other >= 0)
+                                                    list.focusItem(other, cursorRectangle.x, up ? "last" : "first")
+                                                event.accepted = true
+                                            }
                                         } else if (event.key === Qt.Key_Tab) {
                                             screen.editor.setItemIndent(row.index, 1)
                                             event.accepted = true
@@ -552,7 +600,14 @@ Rectangle {
                                             screen.editor.setItemIndent(row.index, 0)
                                             event.accepted = true
                                         } else if (event.key === Qt.Key_Backspace && text === "") {
-                                            list.structural(function () { screen.editor.removeItem(row.index) })
+                                            // Remove the empty item; the cursor goes to the end of the previous one.
+                                            var host = list
+                                            var prev = host.neighbor(row.index, -1)
+                                            var self = row.index
+                                            host.structural(function () { screen.editor.removeItem(self) })
+                                            // (This delegate may be gone by now: only `host` is used afterwards.)
+                                            if (prev >= 0)
+                                                Qt.callLater(function () { host.focusItem(prev > self ? prev - 1 : prev) })
                                             event.accepted = true
                                         }
                                     }

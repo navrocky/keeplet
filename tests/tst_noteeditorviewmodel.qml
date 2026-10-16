@@ -473,4 +473,16 @@ TestCase {
         c = open(noteData())
         compare(c.editor.asText(), "Title\n\nBody")
     }
+
+    function test_addItemAboveKeepsIndentAndAsksForFocus() {
+        var c = open(items5())
+        var focused = []
+        c.editor.itemFocusRequested.connect(function (i) { focused.push(i) })
+        c.editor.addItemAbove(3)                      // above c1 (indent 1)
+        compare(texts(c.editor), "a,b,c,,c1,d")
+        compare(c.editor.note.items[3].indent, 1)
+        compare(focused.join(), "3")
+        c.editor.undo()
+        compare(texts(c.editor), "a,b,c,c1,d")
+    }
 }

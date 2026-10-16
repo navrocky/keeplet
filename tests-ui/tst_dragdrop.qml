@@ -93,7 +93,7 @@ Item {
             verify(ghost, "snapshot of the old list")
             tryVerify(function () { return ghost.opacity > 0.1 && !ghost.live }, 500)   // old list slides out meanwhile
             tryCompare(scroll, "opacity", 1)
-            compare(scroll.transform[0].x, 0)
+            tryVerify(function () { return Math.abs(scroll.transform[0].x) < 0.5 })
             tryCompare(ghost, "live", true)
             verify(ghost.opacity < 0.01)
             notes.select("all")

@@ -91,10 +91,11 @@ Item {
 
         function test_foldingTheDoneSectionAnimatesTheHeightAndHidesTheRows() {
             var l = list()
+            tryCompare(l, "contentHeight", l.openHeight + l.rowHeight + l.doneHeight)   // settled
             var full = l.contentHeight
             l.doneExpanded = false
             tryVerify(function () { return l.contentHeight < full })
-            tryCompare(l, "contentHeight", l.openCount * l.rowHeight + l.rowHeight)
+            tryCompare(l, "contentHeight", l.openHeight + l.rowHeight)
             tryCompare(rowOf(1), "visible", false)
             l.doneExpanded = true
             tryCompare(l, "contentHeight", full)
@@ -112,6 +113,64 @@ Item {
             verify(l.doneTop > one * 2.5)
             editor.setItemText(0, "short")
             tryCompare(rowOf(0), "height", one)
+        }
+
+        function fieldOf(index) { return find(rowOf(index), function (i) { return i.hasOwnProperty("cursorPosition") && i.hasOwnProperty("wrapMode") }) }
+        function focusOn(index, pos) {
+            var f = fieldOf(index)
+            f.forceActiveFocus()
+            f.cursorPosition = pos
+            verify(f.activeFocus)
+            return f
+        }
+
+        function test_enterAtTheEndAddsAnItemBelowAndFocusesIt() {
+            var f = focusOn(0, 1)                                  // "a|"
+            keyClick(Qt.Key_Return)
+            compare(texts(), "a,,b,c,d")
+            tryVerify(function () { return fieldOf(1).activeFocus })
+        }
+
+        function test_enterAtTheStartAddsAnItemAboveAndFocusesIt() {
+            focusOn(2, 0)                                          // "|c"
+            keyClick(Qt.Key_Return)
+            compare(texts(), "a,b,,c,d")
+            tryVerify(function () { return fieldOf(2).activeFocus })
+            compare(fieldOf(2).text, "")
+        }
+
+        function test_enterInTheMiddleAndShiftEnterBreakTheLine() {
+            editor.setItemText(0, "abcd")
+            var f = focusOn(0, 2)
+            keyClick(Qt.Key_Return)
+            compare(texts(), "ab\ncd,b,c,d")                     // no new item
+            f = focusOn(0, 5)                                      // at the very end
+            keyClick(Qt.Key_Return, Qt.ShiftModifier)
+            compare(editor.note.items[0].text, "ab\ncd\n")        // Shift+Enter breaks even at the end
+            compare(editor.note.items.length, 4)
+        }
+
+        function test_backspaceOnAnEmptyItemRemovesItAndGoesToTheEndOfThePrevious() {
+            editor.setItemText(2, "")
+            focusOn(2, 0)
+            keyClick(Qt.Key_Backspace)
+            compare(texts(), "a,b,d")
+            var prev = fieldOf(0)
+            tryVerify(function () { return prev.activeFocus })
+            compare(prev.cursorPosition, prev.length)
+        }
+
+        function test_arrowsLeaveTheItemOnlyAtItsFirstAndLastLine() {
+            editor.setItemText(0, "one\ntwo")
+            var f = focusOn(0, 5)                                  // on the second line
+            keyClick(Qt.Key_Up)
+            verify(f.activeFocus)                                  // moved inside the text
+            compare(f.cursorPosition < 4, true)
+            keyClick(Qt.Key_Up)                                    // first line: stays (no item above)
+            verify(f.activeFocus)
+            f.cursorPosition = f.length
+            keyClick(Qt.Key_Down)                                  // last line: the next open item (c)
+            tryVerify(function () { return fieldOf(2).activeFocus })
         }
 
         function test_dragHandleReordersWithinTheSection() {

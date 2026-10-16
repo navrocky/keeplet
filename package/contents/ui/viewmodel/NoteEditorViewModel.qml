@@ -137,6 +137,15 @@ QtObject {
         })
         itemFocusRequested(at)
     }
+    // Inserts an empty item above `index` (same indent) and asks the View to focus it.
+    function addItemAbove(index) {
+        if (!note || !note.items[index])
+            return
+        _change("", function (n) {
+            n.items.splice(index, 0, { id: "", text: "", checked: false, indent: n.items[index].indent })
+        })
+        itemFocusRequested(index)
+    }
     function removeItem(index) {
         _change("", function (n) { n.items.splice(index, 1) })
     }
