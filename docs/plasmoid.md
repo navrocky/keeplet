@@ -34,6 +34,16 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   dependency from `onXxxChanged` of another property; use `Component.onCompleted`.
 - Don't name a property the same as the id you bind it to (`Foo { auth: auth }` is a binding loop).
 
+## Storage is asynchronous
+- Services (`LocalDb`, `NotesCache`, `AccountsService`, `SecretStore`) return **Promises**; nothing in a ViewModel may wait for
+  storage. `LocalDb` queues operations and runs one per event-loop turn, coalesces writes to one key, answers a read of a key
+  with a pending write from memory, and `drain()`s the queue when it is destroyed. `NotesViewModel` loads an account's cache,
+  shows it, and only then starts the first sync; the cache snapshot is written after `cacheDelay` of quiet and flushed on destruction.
+- SQLite itself still runs on the UI thread: `QtQuick.LocalStorage` has only a synchronous API and its module cannot be
+  imported in a `WorkerScript` (checked on Qt 6.11). Measured cost of that: ~5 ms to write a 1.6 MB snapshot (5000 notes),
+  `JSON.stringify` of it ~21 ms. If it ever matters, only `LocalDb` has to change.
+- Test doubles for services must return Promises too (see `tests/tst_accountsviewmodel.qml`); `tests-ui/tst_localdb.qml` runs the real `LocalDb`.
+
 ## Colors
 - Providers list the color names they support in `capabilities.colors` (empty = none; the first entry is
   the "no color" default). Keep: `DEFAULT, RED, ORANGE, YELLOW, GREEN, TEAL, BLUE, CERULEAN, PURPLE, PINK, BROWN, GRAY`.

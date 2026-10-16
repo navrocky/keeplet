@@ -15,9 +15,10 @@ TestCase {
             property var accounts: []
             property var secrets: ({})
             property var removed: []
-            function list() { return JSON.parse(JSON.stringify(accounts)) }
+            function list() { return Promise.resolve(JSON.parse(JSON.stringify(accounts))) }
             function save(a) {
                 accounts = accounts.filter(function (x) { return x.key !== a.key }).concat([a])
+                return Promise.resolve()
             }
             function remove(key) {
                 accounts = accounts.filter(function (x) { return x.key !== key })

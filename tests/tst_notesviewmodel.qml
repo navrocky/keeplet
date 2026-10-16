@@ -44,9 +44,11 @@ TestCase {
         QtObject {
             property var store: ({})
             property var removed: []
-            function load(k) { return store[k] || "" }
-            function save(k, v) { store[k] = v }
-            function remove(k) { delete store[k]; removed.push(k) }
+            property int flushed: 0
+            function load(k) { return Promise.resolve(store[k] || "") }
+            function save(k, v) { store[k] = v; return Promise.resolve() }
+            function remove(k) { delete store[k]; removed.push(k); return Promise.resolve() }
+            function flush() { flushed++ }
         }
     }
     Component { id: vmComp; VM.NotesViewModel {} }
@@ -122,7 +124,7 @@ TestCase {
         var offlineEntry = entry(keepAcc, { fail: new Errors.ProviderError("network") })
         var accounts2 = accountsComp.createObject(tc, { sessions: [offlineEntry] })
         var offline = vmComp.createObject(tc, { accounts: accounts2, cache: c.cache })
-        verify(offline.loaded)
+        tryVerify(function () { return offline.loaded })
         compare(ids(offline), "b,a")
         tryVerify(function () { return offline.error === "network" })
         compare(ids(offline), "b,a")   // cached notes stay visible
@@ -400,7 +402,7 @@ TestCase {
         var accounts2 = accountsComp.createObject(tc, {
             sessions: [entry(keepAcc, { data: personalData(), fail: new Errors.ProviderError("network") })] })
         var restarted = vmComp.createObject(tc, { accounts: accounts2, cache: c.cache, writeDelay: 20 })
-        compare(restarted.unsynced, 1)
+        tryCompare(restarted, "unsynced", 1)
         compare(restarted.notes.filter(function (n) { return n.id === "a" })[0].title, "Survives restart")
     }
 
@@ -864,5 +866,37 @@ TestCase {
         c.vm.flushCache()
         verify(c.cache.store["fake:me@x"] !== before)
         verify(c.cache.store["fake:me@x"].indexOf("two") >= 0)
+    }
+
+    function test_cachedNotesAppearWhileTheFirstSyncIsStillToCome() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.flushCache()
+        // A slow cache: the account shows nothing until it answers, then the cached notes, then the server's.
+        var release = null
+        var slow = {
+            load: function (k) { return new Promise(function (resolve) { release = function () { resolve(c.cache.store[k]) } }) },
+            save: function () { return Promise.resolve() },
+            remove: function () { return Promise.resolve() }
+        }
+        var accounts2 = accountsComp.createObject(tc, { sessions: [entry(keepAcc, { data: personalData() })] })
+        var vm2 = vmComp.createObject(tc, { accounts: accounts2, cache: slow })
+        compare(vm2.notes.length, 0)
+        verify(!vm2.syncing)                              // the first sync waits for the cache
+        release()
+        tryVerify(function () { return vm2.loaded })
+        compare(ids(vm2), "b,a")
+    }
+
+    function test_flushOnDestructionAsksTheCacheToWriteEverything() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        var note = first(c.vm, "a")
+        note.title = "Last words"
+        c.vm.saveNote(note)
+        c.vm.destroy()
+        wait(10)
+        verify(c.cache.store["fake:me@x"].indexOf("Last words") >= 0)
+        compare(c.cache.flushed, 1)
     }
 }

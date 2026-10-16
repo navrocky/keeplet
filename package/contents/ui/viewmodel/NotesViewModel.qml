@@ -94,10 +94,15 @@ QtObject {
         _cacheDirty = {}
         keys.forEach(function (key) {
             if (cache && _accs[key])
-                cache.save(key, JSON.stringify(_accs[key].state))
+                cache.save(key, JSON.stringify(_accs[key].state))   // queued by the cache, written off the hot path
         })
     }
-    Component.onDestruction: flushCache()
+    // The widget goes away: nothing queued may be lost.
+    Component.onDestruction: {
+        flushCache()
+        if (cache && typeof cache.flush === "function")
+            cache.flush()
+    }
 
     property Timer _writeTimer: Timer {
         interval: vm.writeDelay
@@ -701,20 +706,6 @@ QtObject {
             }
             var a = { account: s.account, provider: s.provider, session: s.session,
                       state: s.session.createState(), syncing: false, lastSync: null, loaded: false, error: null }
-            if (cache) {
-                var json = cache.load(key)
-                if (json) {
-                    try {
-                        var restored = s.session.restoreState(JSON.parse(json))
-                        if (restored) {
-                            a.state = restored
-                            a.loaded = true
-                        }
-                    } catch (e) {
-                        console.warn("Keeplet: ignoring corrupt cache for", key, e)
-                    }
-                }
-            }
             next[key] = a
             fresh.push(key)
         })
@@ -725,7 +716,38 @@ QtObject {
         _accs = next
         _rebuild()
         _updateStatus()
-        fresh.forEach(function (key) { _refreshAccount(key) })
+        // Each new account first shows its cached snapshot (read asynchronously), then syncs from it.
+        fresh.forEach(function (key) { _restoreThenRefresh(key) })
+    }
+
+    function _restoreThenRefresh(key) {
+        var a = _accs[key]
+        if (!a)
+            return
+        var loading = cache ? cache.load(key) : Promise.resolve("")
+        loading.then(function (json) {
+            // The account may have been removed or replaced while the cache was read.
+            if (_accs[key] !== a)
+                return
+            if (json && !a.loaded && _pendingOf(a) === 0) {
+                try {
+                    var restored = a.session.restoreState(JSON.parse(json))
+                    if (restored) {
+                        a.state = restored
+                        a.loaded = true
+                        _rebuild()
+                        _updateStatus()
+                    }
+                } catch (e) {
+                    console.warn("Keeplet: ignoring corrupt cache for", key, e)
+                }
+            }
+        }, function (e) {
+            console.warn("Keeplet: cache read failed for", key, e)
+        }).then(function () {
+            if (_accs[key] === a)
+                _refreshAccount(key)
+        })
     }
 
     on_SessionsChanged: _adoptSessions()

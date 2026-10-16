@@ -41,7 +41,7 @@ No native code: stage 0 showed that both `/auth` and `/changes` work from QML XH
 3. Sync (`NotesViewModel.refresh`, per account, independently): `session.sync(state)`; for Keep that is
    `POST /changes` with the last `toVersion`, repeated while `truncated`
    ([keep-protocol.md](keep-protocol.md)). The state is snapshotted to the cache.
-4. On start each account's cached snapshot is shown immediately, then a sync runs; then it repeats on a timer
+4. On start each account's cached snapshot is read asynchronously and shown, then a sync runs; then it repeats on a timer
    (`syncInterval`) and on demand. A 401 refreshes the auth token and retries once (inside the provider).
 5. Writing: a View hands an edited note to `NotesViewModel.saveNote` → `session.commit` applies it to the
    provider state at once (optimistic) and queues it → the state is cached → after `writeDelay` of quiet the
