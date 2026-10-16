@@ -89,8 +89,13 @@ Item {
             verify(scroll, "notes scroll view")
             notes.select("label:fake:me|L2")
             tryVerify(function () { return scroll.opacity < 1 || scroll.transform[0].x < 0 }, 500)   // it starts off the rail
+            var ghost = find(root, function (i) { return i.hasOwnProperty("sourceItem") && i.sourceItem === scroll })
+            verify(ghost, "snapshot of the old list")
+            tryVerify(function () { return ghost.opacity > 0.1 && !ghost.live }, 500)   // old list slides out meanwhile
             tryCompare(scroll, "opacity", 1)
             compare(scroll.transform[0].x, 0)
+            tryCompare(ghost, "live", true)
+            verify(ghost.opacity < 0.01)
             notes.select("all")
             tryCompare(scroll, "opacity", 1)
         }

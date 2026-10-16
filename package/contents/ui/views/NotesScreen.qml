@@ -344,166 +344,200 @@ Item {
                 dragNoteKey: dragLayer.active ? dragLayer.noteKey : ""
             }
 
-            ParallelAnimation {
-                id: slideIn
-                NumberAnimation {
-                    target: slide; property: "x"; from: -listScroll.width * 0.4; to: 0
-                    duration: Kirigami.Units.veryLongDuration; easing.type: Easing.OutCubic
-                }
-                NumberAnimation {
-                    target: listScroll; property: "opacity"; from: 0; to: 1
-                    duration: Kirigami.Units.veryLongDuration; easing.type: Easing.OutCubic
-                }
-            }
-            Connections {
-                target: view.vm
-                function onSelectedChanged() { slideIn.restart() }
-            }
-
-            PlasmaComponents.ScrollView {
-                id: listScroll
+            // Switching the group: the new list slides in from the rail side while the old one (a frozen
+            // snapshot of the list, `ghost`) slides out to the right and fades.
+            Item {
+                id: listHost
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
 
-                // Switching the group: the list slides out of the rail to the right.
-                transform: Translate { id: slide }
-                ListView {
-                    id: list
-                    model: view.vm.notes
-                    spacing: Kirigami.Units.smallSpacing
+                readonly property real slideDistance: Kirigami.Units.gridUnit * 2
+                // The ghost keeps copying the list (nearly invisible) so that it holds the previous content
+                // when the group changes; an item with opacity 0 would not be rendered at all.
+                readonly property real idleGhost: 0.003
+
+                ShaderEffectSource {
+                    id: ghost
+                    anchors.fill: parent
+                    sourceItem: listScroll
+                    live: true
+                    opacity: listHost.idleGhost
+                    transform: Translate { id: ghostSlide }
+                }
+
+                ParallelAnimation {
+                    id: slideIn
+                    NumberAnimation {
+                        target: slide; property: "x"; from: -listHost.slideDistance; to: 0
+                        duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic
+                    }
+                    NumberAnimation {
+                        target: listScroll; property: "opacity"; from: 0; to: 1
+                        duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic
+                    }
+                    NumberAnimation {
+                        target: ghostSlide; property: "x"; from: 0; to: listHost.slideDistance
+                        duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic
+                    }
+                    NumberAnimation {
+                        target: ghost; property: "opacity"; from: 1; to: listHost.idleGhost
+                        duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic
+                    }
+                    onFinished: ghost.live = true
+                }
+                Connections {
+                    target: view.vm
+                    function onSelectedChanged() {
+                        ghost.live = false     // freeze what is on screen now, before the model changes
+                        slideIn.restart()
+                    }
+                }
+
+                PlasmaComponents.ScrollView {
+                    id: listScroll
+                    anchors.fill: parent
                     clip: true
 
-                    // Pointer handling lives here, on the list, because it must outlive the cards: a delegate is
-                    // destroyed when it scrolls out of view, and a drag has to survive that.
-                    // (Handlers declared in a ListView work in content coordinates, as ListView.itemAt expects.)
-                    TapHandler {
-                        acceptedButtons: Qt.LeftButton
-                        cursorShape: Qt.PointingHandCursor
-                        onTapped: eventPoint => {
-                            var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
-                            if (slot)
-                                view.vm.openNote(slot.modelData.key)
-                        }
-                    }
+                    // Switching the group: the list slides out of the rail to the right.
+                    transform: Translate { id: slide }
+                    ListView {
+                        id: list
+                        model: view.vm.notes
+                        spacing: Kirigami.Units.smallSpacing
+                        clip: true
 
-                    TapHandler {
-                        acceptedButtons: Qt.RightButton
-                        onTapped: eventPoint => {
-                            var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
-                            if (slot)
-                                noteMenu.openFor(slot.modelData, list.contentItem,
-                                                 eventPoint.position)
-                        }
-                    }
-
-                    // Only a horizontal move starts a drag (towards the group rail); vertical drags scroll.
-                    DragHandler {
-                        id: noteDrag
-                        acceptedButtons: Qt.LeftButton
-                        target: null
-                        xAxis.enabled: true
-                        yAxis.enabled: false
-                        dragThreshold: Kirigami.Units.smallSpacing * 2
-                        onActiveChanged: {
-                            if (active) {
-                                var slot = list.itemAt(centroid.pressPosition.x, centroid.pressPosition.y)
+                        // Pointer handling lives here, on the list, because it must outlive the cards: a delegate is
+                        // destroyed when it scrolls out of view, and a drag has to survive that.
+                        // (Handlers declared in a ListView work in content coordinates, as ListView.itemAt expects.)
+                        TapHandler {
+                            acceptedButtons: Qt.LeftButton
+                            cursorShape: Qt.PointingHandCursor
+                            onTapped: eventPoint => {
+                                var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
                                 if (slot)
-                                    view.beginDrag(slot.modelData, slot.cardItem, centroid.scenePosition)
-                            } else {
-                                view.endDrag()
+                                    view.vm.openNote(slot.modelData.key)
                             }
                         }
-                        onCentroidChanged: {
-                            if (active)
-                                view.moveDrag(centroid.scenePosition)
-                        }
-                    }
 
-                    // Cards slide to their new places when notes appear, vanish or the order changes.
-                    displaced: Transition {
-                        NumberAnimation { properties: "y"; duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
-                    }
-                    remove: Transition {
-                        NumberAnimation { property: "opacity"; to: 0; duration: Kirigami.Units.shortDuration }
-                    }
-
-                    // A slot (whose height may change) around the card: the card keeps its size and its pointer
-                    // handlers while the slot collapses during a drag.
-                    delegate: Item {
-                        id: slot
-                        required property int index
-                        required property var modelData
-                        readonly property bool dragged: dragLayer.active && dragLayer.noteKey === modelData.key
-                        readonly property alias cardItem: card
-                        // Room opened in front of this card for the carried note (manual order).
-                        property real gap: !dragged && view.insertBefore === index ? view.dragHeight : 0
-                        Behavior on gap {
-                            NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
-                        }
-
-                        width: list.width
-                        // While its card is carried the slot closes and the other cards slide together;
-                        // when the card comes back (or is dropped elsewhere) the slot opens again.
-                        height: dragged ? 0 : gap + card.implicitHeight
-                        Behavior on height {
-                            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
-                        }
-
-                        // Marks where the carried note would land.
-                        Rectangle {
-                            visible: slot.gap > 2
-                            x: 0
-                            y: 0
-                            width: slot.width
-                            height: Math.max(0, slot.gap - Kirigami.Units.smallSpacing)
-                            radius: Kirigami.Units.smallSpacing * 2
-                            color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
-                            border.width: 2
-                            border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
-                        }
-
-                        NoteCard {
-                            id: card
-                            y: slot.gap
-                            width: slot.width
-                            opacity: slot.dragged ? 0 : 1
-                            Behavior on opacity {
-                                NumberAnimation { duration: Kirigami.Units.shortDuration }
+                        TapHandler {
+                            acceptedButtons: Qt.RightButton
+                            onTapped: eventPoint => {
+                                var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
+                                if (slot)
+                                    noteMenu.openFor(slot.modelData, list.contentItem,
+                                                     eventPoint.position)
                             }
-                            note: slot.modelData
-                        }
-                    }
-
-                    // The same room at the very end of the list.
-                    footer: Item {
-                        width: list.width
-                        height: view.insertBefore === list.count && view.insertBefore >= 0 ? view.dragHeight : 0
-                        Behavior on height {
-                            NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
                         }
 
-                        Rectangle {
-                            visible: parent.height > 2
-                            width: parent.width
-                            height: Math.max(0, parent.height - Kirigami.Units.smallSpacing)
-                            radius: Kirigami.Units.smallSpacing * 2
-                            color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
-                            border.width: 2
-                            border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
+                        // Only a horizontal move starts a drag (towards the group rail); vertical drags scroll.
+                        DragHandler {
+                            id: noteDrag
+                            acceptedButtons: Qt.LeftButton
+                            target: null
+                            xAxis.enabled: true
+                            yAxis.enabled: false
+                            dragThreshold: Kirigami.Units.smallSpacing * 2
+                            onActiveChanged: {
+                                if (active) {
+                                    var slot = list.itemAt(centroid.pressPosition.x, centroid.pressPosition.y)
+                                    if (slot)
+                                        view.beginDrag(slot.modelData, slot.cardItem, centroid.scenePosition)
+                                } else {
+                                    view.endDrag()
+                                }
+                            }
+                            onCentroidChanged: {
+                                if (active)
+                                    view.moveDrag(centroid.scenePosition)
+                            }
                         }
-                    }
 
-                    PlasmaComponents.Label {
-                        anchors.centerIn: parent
-                        width: parent.width - Kirigami.Units.gridUnit * 2
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.Wrap
-                        opacity: 0.7
-                        visible: list.count === 0 && !view.vm.syncing
-                        text: !view.vm.loaded ? i18n("Nothing here yet.")
-                              : view.vm.searchText !== "" ? i18n("No notes match your search.")
-                              : i18n("No notes.")
+                        // Cards slide to their new places when notes appear, vanish or the order changes.
+                        displaced: Transition {
+                            NumberAnimation { properties: "y"; duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+                        }
+                        remove: Transition {
+                            NumberAnimation { property: "opacity"; to: 0; duration: Kirigami.Units.shortDuration }
+                        }
+
+                        // A slot (whose height may change) around the card: the card keeps its size and its pointer
+                        // handlers while the slot collapses during a drag.
+                        delegate: Item {
+                            id: slot
+                            required property int index
+                            required property var modelData
+                            readonly property bool dragged: dragLayer.active && dragLayer.noteKey === modelData.key
+                            readonly property alias cardItem: card
+                            // Room opened in front of this card for the carried note (manual order).
+                            property real gap: !dragged && view.insertBefore === index ? view.dragHeight : 0
+                            Behavior on gap {
+                                NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+                            }
+
+                            width: list.width
+                            // While its card is carried the slot closes and the other cards slide together;
+                            // when the card comes back (or is dropped elsewhere) the slot opens again.
+                            height: dragged ? 0 : gap + card.implicitHeight
+                            Behavior on height {
+                                NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+                            }
+
+                            // Marks where the carried note would land.
+                            Rectangle {
+                                visible: slot.gap > 2
+                                x: 0
+                                y: 0
+                                width: slot.width
+                                height: Math.max(0, slot.gap - Kirigami.Units.smallSpacing)
+                                radius: Kirigami.Units.smallSpacing * 2
+                                color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
+                                border.width: 2
+                                border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
+                            }
+
+                            NoteCard {
+                                id: card
+                                y: slot.gap
+                                width: slot.width
+                                opacity: slot.dragged ? 0 : 1
+                                Behavior on opacity {
+                                    NumberAnimation { duration: Kirigami.Units.shortDuration }
+                                }
+                                note: slot.modelData
+                            }
+                        }
+
+                        // The same room at the very end of the list.
+                        footer: Item {
+                            width: list.width
+                            height: view.insertBefore === list.count && view.insertBefore >= 0 ? view.dragHeight : 0
+                            Behavior on height {
+                                NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+                            }
+
+                            Rectangle {
+                                visible: parent.height > 2
+                                width: parent.width
+                                height: Math.max(0, parent.height - Kirigami.Units.smallSpacing)
+                                radius: Kirigami.Units.smallSpacing * 2
+                                color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
+                                border.width: 2
+                                border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
+                            }
+                        }
+
+                        PlasmaComponents.Label {
+                            anchors.centerIn: parent
+                            width: parent.width - Kirigami.Units.gridUnit * 2
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.Wrap
+                            opacity: 0.7
+                            visible: list.count === 0 && !view.vm.syncing
+                            text: !view.vm.loaded ? i18n("Nothing here yet.")
+                                  : view.vm.searchText !== "" ? i18n("No notes match your search.")
+                                  : i18n("No notes.")
+                        }
                     }
                 }
             }
