@@ -100,7 +100,8 @@ ColumnLayout {
             echoMode: modelData.secret ? TextInput.Password : TextInput.Normal
             enabled: !view.accounts.busy
             onTextChanged: {
-                var v = view.values
+                // A copy: assigning the same object would not re-evaluate the bindings that read `values`.
+                var v = Object.assign({}, view.values)
                 v[modelData.key] = text
                 view.values = v
             }
