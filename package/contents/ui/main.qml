@@ -11,7 +11,8 @@ import "services"
 PlasmoidItem {
     id: root
 
-    Plasmoid.icon: "knotes"
+    // The packaged icon (art/ has the sources); the theme name "keeplet" in metadata.json needs scripts/install.sh.
+    Plasmoid.icon: Qt.resolvedUrl("../icons/keeplet.svg")
     toolTipSubText: accountsVm.signedIn
                     ? accountsVm.accounts.map(function (a) { return a.displayName }).join(", ")
                     : i18n("Not signed in")
