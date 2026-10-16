@@ -42,11 +42,13 @@ QtObject {
 
     function reload() {
         var scope = _scope
-        var stored = service.list().filter(function (a) {
-            return scope.length === 0 || scope.indexOf(a.key) >= 0
-        })
         var generation = ++_generation
-        return Promise.all(stored.map(function (account) {
+        return service.list().then(function (all) {
+            return all.filter(function (a) {
+                return scope.length === 0 || scope.indexOf(a.key) >= 0
+            })
+        }).then(function (stored) {
+            return Promise.all(stored.map(function (account) {
             var provider = registry.get(account.providerId)
             if (!provider)
                 return Promise.resolve({ account: account, provider: null, secret: "" })
@@ -87,6 +89,7 @@ QtObject {
             sessions = sess
             ready = true
         })
+        })
     }
 
     function signIn(providerId, creds) {
@@ -99,8 +102,9 @@ QtObject {
         provider.signIn(creds).then(function (r) {
             var key = providerId + ":" + r.accountId
             return service.writeSecret(key, r.secret).then(function () {
-                service.save({ key: key, providerId: providerId, accountId: r.accountId,
-                               displayName: r.displayName, meta: r.meta || {} })
+                return service.save({ key: key, providerId: providerId, accountId: r.accountId,
+                                      displayName: r.displayName, meta: r.meta || {} })
+            }).then(function () {
                 signInRequested = false
                 return reload()
             })
@@ -119,8 +123,7 @@ QtObject {
 
     // Forgets an account everywhere (registry, secret, cache).
     function remove(accountKey) {
-        service.remove(accountKey)
-        return reload()
+        return service.remove(accountKey).then(function () { return reload() })
     }
 
     function requestSignIn() { error = ""; errorDetail = ""; signInRequested = true }

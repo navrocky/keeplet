@@ -90,23 +90,22 @@ QtObject {
 
     function write(key, value) {
         return _detect().then(function (b) {
-            if (b !== "kwallet") {
-                db.set("secrets", key, value)
-                return
-            }
+            if (b !== "kwallet")
+                return db.set("secrets", key, value)
             return _withWallet(function (h) {
                 return _kwallet("writePassword", [h, folder, key, value, appId])
             }).then(function (rc) {
                 if (rc !== 0)
                     throw new Error("KWallet: write failed (" + rc + ")")
-                db.remove("secrets", key)
+                return db.remove("secrets", key)
             })
         })
     }
 
     function remove(key) {
-        db.remove("secrets", key)
-        return _detect().then(function (b) {
+        return db.remove("secrets", key).then(function () {
+            return _detect()
+        }).then(function (b) {
             if (b !== "kwallet")
                 return
             return _withWallet(function (h) {
