@@ -55,7 +55,9 @@ function _newItem(parentId, item, sort, superId, ctx, now) {
 }
 
 // Sort values for items in display order. `known` holds the existing value or null for new items.
-function _assignSorts(known) {
+function _assignSorts(known, renumber) {
+    if (renumber)
+        return known.map(function (v, i) { return BASE_SORT - i * STEP })
     var out = known.slice()
     for (var i = 0; i < out.length; i++) {
         if (out[i] !== null)
@@ -90,6 +92,17 @@ function _topSort(state) {
             max = v
     })
     return max === null ? BASE_SORT : max + STEP
+}
+
+// Ids of a checklist's live items in display order: each top-level item followed by its sub-items.
+function _displayOrder(state, noteId) {
+    var kids = _items(state, noteId)
+    var out = []
+    kids.filter(function (n) { return !n.superListItemId }).forEach(function (n) {
+        out.push(n.id)
+        kids.filter(function (c) { return c.superListItemId === n.id }).forEach(function (c) { out.push(c.id) })
+    })
+    return out
 }
 
 function _parents(items) {
@@ -155,6 +168,13 @@ function commitNote(state, snap, ctx) {
         }
     }
 
+    // Text note <-> checklist: the children are rewritten below according to the new type.
+    var type = snap.type === "LIST" || snap.type === "NOTE" ? snap.type : raw.type
+    if (top.type !== type) {
+        top.type = type
+        setTop(true, true)
+    }
+
     if ((top.title || "") !== (snap.title || "")) {
         top.title = snap.title || ""
         setTop(true, true)
@@ -201,7 +221,7 @@ function commitNote(state, snap, ctx) {
 
     var children = []
 
-    if (raw.type === "LIST") {
+    if (type === "LIST") {
         var existing = _items(state, snap.id)
         // An item id is "usable" when it names a live item of this list. A snapshot may carry the id of
         // an item that was deleted meanwhile (undo of a removal): that item is created again, with a new id.
@@ -228,9 +248,12 @@ function commitNote(state, snap, ctx) {
             return { id: isNew ? ctx.newId() : it.id, text: it.text, checked: it.checked, indent: it.indent || 0, isNew: isNew }
         })
         var parents = _parents(items)
+        // The surviving items in a different order than before: the old sort values cannot express it.
+        var before = _displayOrder(state, snap.id).filter(function (id) { return wantedIds[id] })
+        var after = items.filter(function (it) { return !it.isNew }).map(function (it) { return it.id })
         var sorts = _assignSorts(items.map(function (it) {
             return it.isNew ? null : _num(state.nodes[it.id].sortValue)
-        }))
+        }), before.join() !== after.join())
 
         items.forEach(function (it, i) {
             if (it.isNew) {
@@ -241,6 +264,10 @@ function commitNote(state, snap, ctx) {
             }
             var c = _clone(state.nodes[it.id])
             var changed = false
+            if (_num(c.sortValue) !== sorts[i]) {
+                c.sortValue = String(sorts[i])
+                changed = true
+            }
             if ((c.text || "") !== (it.text || "")) {
                 c.text = it.text || ""
                 changed = true
@@ -265,12 +292,25 @@ function commitNote(state, snap, ctx) {
             }
         })
     } else {
-        var body = _items(state, snap.id)[0]
+        var all = _items(state, snap.id)
+        var body = all.filter(function (n) { return !n.superListItemId })[0]
         var text = snap.text || ""
+        // A text note has a single body item: whatever else a checklist left behind goes away.
+        all.forEach(function (n) {
+            if (n === body)
+                return
+            var gone = _clone(n)
+            gone.timestamps.deleted = now
+            gone.timestamps.updated = now
+            children.push(gone)
+            contentChanged = true
+            topChanged = true
+        })
         if (body) {
-            if ((body.text || "") !== text) {
+            if ((body.text || "") !== text || body.checked) {
                 var b = _clone(body)
                 b.text = text
+                b.checked = false
                 b.timestamps.updated = now
                 children.push(b)
                 contentChanged = true

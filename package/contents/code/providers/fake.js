@@ -11,7 +11,7 @@ var name = "Fake"
 var icon = "applications-development"
 
 var capabilities = {
-    labels: "multi", colors: ["DEFAULT", "RED", "BLUE"], checklists: true, nestedItems: false,
+    labels: "multi", colors: ["DEFAULT", "RED", "BLUE"], checklists: true, nestedItems: false, convertType: true,
     pinned: true, archive: true, trash: true, images: false, write: true, reorder: true, offlineEdit: true
 }
 

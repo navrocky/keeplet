@@ -342,4 +342,61 @@ TestCase {
         compare(order.join(), "l1,n1")                      // l1 (200) is now above n1 (50)
         verify(!Mut.reorder(s, "n1", 50, ctx()))            // already there
     }
+
+    // --- item order and note <-> list conversion
+
+    function test_movingItemsRenumbersTheSortValues() {
+        var s = stateWith()
+        var sn = snap(s, "l1")
+        sn.items = [sn.items[2], sn.items[0], sn.items[1]]       // third, first, second
+        Mut.commit(s, sn, ctx())
+        var order = snap(s, "l1").items.map(function (i) { return i.text })
+        compare(order.join(), "third,first,second")
+    }
+
+    function test_unmovedItemsKeepTheirSortValues() {
+        var s = stateWith()
+        var sn = snap(s, "l1")
+        sn.items[1].text = "changed"
+        var r = Mut.commitNote(s, sn, ctx())
+        compare(byId(r, "l1.b").sortValue, "2000000")
+        verify(byId(r, "l1.a") === undefined)
+    }
+
+    function test_checkingAnItemKeepsItsPlace() {
+        var s = stateWith()
+        var sn = snap(s, "l1")
+        sn.items[0].checked = true
+        Mut.commit(s, sn, ctx())
+        var items = snap(s, "l1").items
+        compare(items.map(function (i) { return i.text }).join(), "first,second,third")
+        verify(items[0].checked)
+    }
+
+    function test_noteBecomesAList() {
+        var s = stateWith()
+        var sn = snap(s, "n1")
+        sn.type = "LIST"
+        sn.text = ""
+        sn.items = [{ id: "", text: "milk", checked: false, indent: 0 }, { id: "", text: "bread", checked: false, indent: 0 }]
+        Mut.commit(s, sn, ctx())
+        var n = snap(s, "n1")
+        compare(n.type, "LIST")
+        compare(n.items.map(function (i) { return i.text }).join(), "milk,bread")
+        compare(Nodes.isDeleted(s.nodes["n1.b"]), true)
+    }
+
+    function test_listBecomesANote() {
+        var s = stateWith()
+        var sn = snap(s, "l1")
+        sn.items[1].checked = true
+        sn.type = "NOTE"
+        sn.text = "first\nsecond\nthird"
+        sn.items = []
+        Mut.commit(s, sn, ctx())
+        var n = snap(s, "l1")
+        compare(n.type, "NOTE")
+        compare(n.text, "first\nsecond\nthird")
+        compare(Nodes.isDeleted(s.nodes["l1.b"]) + Nodes.isDeleted(s.nodes["l1.c"]) + Nodes.isDeleted(s.nodes["l1.a"]), 2)
+    }
 }

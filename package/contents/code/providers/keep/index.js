@@ -12,7 +12,7 @@ var name = "Google Keep"
 var icon = "knotes"
 
 var capabilities = {
-    labels: "multi", colors: Nodes.COLORS, checklists: true, nestedItems: true,
+    labels: "multi", colors: Nodes.COLORS, checklists: true, nestedItems: true, convertType: true,
     pinned: true, archive: true, trash: true, images: true,
     write: true,      // session.commit / remove / pending
     reorder: true,    // session.reorder (manual order of notes; sortValue of the note node)

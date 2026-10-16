@@ -3,7 +3,7 @@
 // Structural check of the provider contract (docs/providers.md). Returns a list of problems;
 // an empty list means the provider is usable. Run by tests for every provider.
 
-var CAPABILITY_KEYS = ["labels", "colors", "checklists", "nestedItems", "pinned", "archive", "trash", "images", "write", "reorder", "offlineEdit"]
+var CAPABILITY_KEYS = ["labels", "colors", "checklists", "nestedItems", "convertType", "pinned", "archive", "trash", "images", "write", "reorder", "offlineEdit"]
 var LABEL_MODES = ["multi", "single", "none"]
 var SESSION_METHODS = ["createState", "restoreState", "sync", "notes", "labels"]
 // Required when capabilities.write is true.
