@@ -449,10 +449,18 @@ Rectangle {
                         dragIndex = -1
                         dragOffset = 0
                     }
+                    // Delegates are bound to indexes, so after an insert/remove every row suddenly shows another item and
+                    // reports its height a moment later (callLater + the text area's polish). Rows must jump, not slide:
+                    // keep `instant` on until that has settled.
                     function structural(change) {
                         instant = true
                         change()
-                        instant = false
+                        settleTimer.restart()
+                    }
+                    Timer {
+                        id: settleTimer
+                        interval: 150
+                        onTriggered: list.instant = false
                     }
 
                     // Only to measure a one-line row.
@@ -506,7 +514,10 @@ Rectangle {
                             }
                             opacity: hidden ? 0 : 1
                             visible: opacity > 0 || !hidden
-                            Behavior on opacity { NumberAnimation { duration: Kirigami.Units.longDuration } }
+                            Behavior on opacity {
+                                enabled: !list.instant
+                                NumberAnimation { duration: Kirigami.Units.longDuration }
+                            }
 
                             RowLayout {
                                 id: line

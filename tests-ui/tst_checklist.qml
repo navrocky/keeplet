@@ -192,6 +192,34 @@ Item {
             tryVerify(function () { return fieldOf(2).activeFocus })
         }
 
+        function watchRows() {
+            var counts = {}
+            for (var i = 0; i < 8; i++) {
+                var r = rowOf(i)
+                if (!r)
+                    continue
+                counts[i] = 0
+                ;(function (k, row) { row.yChanged.connect(function () { counts[k]++ }) })(i, r)
+            }
+            return counts
+        }
+
+        function test_insertingOrRemovingAnItemMovesRowsInOneJumpNotAnimation() {
+            var l = list()
+            wait(200)
+            var counts = watchRows()
+            focusOn(0, 1)
+            keyClick(Qt.Key_Return)                               // new item below a
+            wait(600)
+            for (var k in counts)
+                verify(counts[k] <= 2, "row " + k + " moved in " + counts[k] + " steps")
+            tryVerify(function () { return !l.instant })          // and animations are back afterwards
+            counts = watchRows()
+            editor.toggleItem(0)
+            wait(400)
+            verify(counts[0] > 3 || counts[1] > 3, "checking an item still animates")
+        }
+
         function test_dragHandleReordersWithinTheSection() {
             var l = list()
             var handle = find(rowOf(0), function (i) { return i.source === "handle-sort" })
