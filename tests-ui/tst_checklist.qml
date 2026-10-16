@@ -160,6 +160,25 @@ Item {
             compare(prev.cursorPosition, prev.length)
         }
 
+        function test_backspaceOnTheEmptyFirstItemGoesToTheStartOfTheNext() {
+            editor.setItemText(0, "")
+            focusOn(0, 0)
+            keyClick(Qt.Key_Backspace)
+            compare(texts(), "b,c,d")
+            tryVerify(function () { return fieldOf(1).activeFocus })        // "c" is now the first open item... index 1
+            compare(fieldOf(1).cursorPosition, 0)
+        }
+
+        function test_cursorGoingDownIntoFoldedDoneUnfoldsIt() {
+            var l = list()
+            l.doneExpanded = false
+            tryCompare(rowOf(1), "visible", false)
+            focusOn(2, 1)                                        // last open item "c", cursor at the end
+            keyClick(Qt.Key_Down)
+            verify(l.doneExpanded)
+            tryVerify(function () { return fieldOf(1).activeFocus })
+        }
+
         function test_arrowsLeaveTheItemOnlyAtItsFirstAndLastLine() {
             editor.setItemText(0, "one\ntwo")
             var f = focusOn(0, 5)                                  // on the second line

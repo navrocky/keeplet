@@ -5,11 +5,16 @@ import QtQuick.LocalStorage as Sql
 // Values are strings; namespaces keep registry, secrets and cache apart.
 // Failures are non-fatal and logged: reads return "" / [].
 QtObject {
+    // Opened once: opening the database and checking the table for every call is slow.
+    property var _handle: null
     function _db() {
+        if (_handle)
+            return _handle
         var db = Sql.LocalStorage.openDatabaseSync("keeplet", "", "Keeplet", 16 * 1024 * 1024)
         db.transaction(function (tx) {
             tx.executeSql("CREATE TABLE IF NOT EXISTS kv (ns TEXT, key TEXT, value TEXT, PRIMARY KEY (ns, key))")
         })
+        _handle = db
         return db
     }
 

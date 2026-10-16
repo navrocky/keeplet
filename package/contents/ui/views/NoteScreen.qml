@@ -324,12 +324,26 @@ Rectangle {
                     // Item index -> its row's height; delegates report it.
                     property var rowHeights: []
                     function heightOf(index) { return rowHeights[index] || rowHeight }
+                    // Rows report their heights in one go (a new item or a resize of the list makes many at once).
+                    property var _reported: ({})
                     function setHeight(index, h) {
-                        if (rowHeights[index] === h)
+                        if (rowHeights[index] === h && !(index in _reported))
                             return
+                        _reported[index] = h
+                        Qt.callLater(applyHeights)
+                    }
+                    function applyHeights() {
                         var copy = rowHeights.slice()
-                        copy[index] = h
-                        rowHeights = copy
+                        var changed = false
+                        Object.keys(_reported).forEach(function (k) {
+                            if (copy[k] !== _reported[k]) {
+                                copy[k] = _reported[k]
+                                changed = true
+                            }
+                        })
+                        _reported = ({})
+                        if (changed)
+                            rowHeights = copy
                     }
                     function sumHeights(indexes) {
                         var total = 0
@@ -405,9 +419,9 @@ Rectangle {
                         return out
                     }
 
-                    // Visual order of the rows that can take the cursor: open items, then done ones when unfolded.
+                    // Visual order of the rows: open items, then done ones.
                     function visualOrder() {
-                        return screen.editor.openIndexes.concat(doneExpanded ? screen.editor.doneIndexes : [])
+                        return screen.editor.openIndexes.concat(screen.editor.doneIndexes)
                     }
                     // Item index next to `index` in visual order (dir -1 / +1), -1 at the ends.
                     function neighbor(index, dir) {
@@ -417,6 +431,9 @@ Rectangle {
                     }
                     function focusItem(index, x, edge) {
                         var target = items.itemAt(index)
+                        // The cursor going down into a folded Done section unfolds it.
+                        if (target && target.done && !doneExpanded)
+                            doneExpanded = true
                         if (target)
                             target.focusField(x, edge)
                     }
@@ -488,7 +505,7 @@ Rectangle {
                                 NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
                             }
                             opacity: hidden ? 0 : 1
-                            visible: opacity > 0
+                            visible: opacity > 0 || !hidden
                             Behavior on opacity { NumberAnimation { duration: Kirigami.Units.longDuration } }
 
                             RowLayout {
@@ -603,11 +620,16 @@ Rectangle {
                                             // Remove the empty item; the cursor goes to the end of the previous one.
                                             var host = list
                                             var prev = host.neighbor(row.index, -1)
+                                            var next = host.neighbor(row.index, 1)
                                             var self = row.index
                                             host.structural(function () { screen.editor.removeItem(self) })
                                             // (This delegate may be gone by now: only `host` is used afterwards.)
-                                            if (prev >= 0)
+                                            if (prev >= 0) {
                                                 Qt.callLater(function () { host.focusItem(prev > self ? prev - 1 : prev) })
+                                            } else if (next >= 0) {
+                                                // First item: the cursor goes to the start of the next one.
+                                                Qt.callLater(function () { host.focusItem(next > self ? next - 1 : next, 0, "first") })
+                                            }
                                             event.accepted = true
                                         }
                                     }

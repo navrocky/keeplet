@@ -72,6 +72,33 @@ QtObject {
     property var _all: []
     readonly property var _sessions: accounts.sessions
 
+    // The cache snapshot is serialized and written to SQLite synchronously (UI thread), so it is done once after
+    // a quiet period instead of after every edit. Edits are queued in the state, which is what the snapshot holds:
+    // flushCache() runs on destruction, so a close loses nothing.
+    property int cacheDelay: 1500
+    property var _cacheDirty: ({})
+    property Timer _cacheTimer: Timer {
+        interval: vm.cacheDelay
+        repeat: false
+        onTriggered: vm.flushCache()
+    }
+    function _cacheLater(accountKey) {
+        if (!cache)
+            return
+        _cacheDirty[accountKey] = true
+        _cacheTimer.restart()
+    }
+    function flushCache() {
+        _cacheTimer.stop()
+        var keys = Object.keys(_cacheDirty)
+        _cacheDirty = {}
+        keys.forEach(function (key) {
+            if (cache && _accs[key])
+                cache.save(key, JSON.stringify(_accs[key].state))
+        })
+    }
+    Component.onDestruction: flushCache()
+
     property Timer _writeTimer: Timer {
         interval: vm.writeDelay
         repeat: false
@@ -472,8 +499,7 @@ QtObject {
     }
 
     function _afterWrite(a) {
-        if (cache)
-            cache.save(a.account.key, JSON.stringify(a.state))
+        _cacheLater(a.account.key)
         _rebuild()
         _updateStatus()
         _writeTimer.restart()
@@ -507,8 +533,7 @@ QtObject {
             a.state = state
             a.lastSync = new Date()
             a.loaded = true
-            if (cache)
-                cache.save(key, JSON.stringify(a.state))
+            _cacheLater(key)
         }).catch(function (e) {
             a.error = _fail(e)
         }).then(function () {

@@ -115,6 +115,7 @@ TestCase {
     function test_syncWritesCacheAndNextStartRestoresIt() {
         var c = make([entry(keepAcc, { data: personalData() })])
         tryVerify(function () { return c.vm.loaded })
+        c.vm.flushCache()
         verify(c.cache.store["fake:me@x"].length > 0)
 
         // A second ViewModel starts from the cache even when the network is down.
@@ -394,6 +395,7 @@ TestCase {
         note.title = "Survives restart"
         c.vm.saveNote(note)
         tryVerify(function () { return c.vm.error === "network" && !c.vm.syncing })
+        c.vm.flushCache()
 
         var accounts2 = accountsComp.createObject(tc, {
             sessions: [entry(keepAcc, { data: personalData(), fail: new Errors.ProviderError("network") })] })
@@ -844,5 +846,23 @@ TestCase {
         var text = c.vm.noteText("fake:me@x/a")
         verify(text.indexOf(n.title) === 0)
         compare(c.vm.noteText("missing"), "")
+    }
+
+    function test_cacheIsWrittenOnceAfterAQuietPeriod() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.cacheDelay = 100000                         // never by timer in this test
+        c.vm.flushCache()
+        var saves = 0
+        var before = c.cache.store["fake:me@x"]
+        var note = first(c.vm, "a")
+        note.title = "one"
+        c.vm.saveNote(note)
+        note.title = "two"
+        c.vm.saveNote(note)
+        compare(c.cache.store["fake:me@x"], before)      // nothing written per edit
+        c.vm.flushCache()
+        verify(c.cache.store["fake:me@x"] !== before)
+        verify(c.cache.store["fake:me@x"].indexOf("two") >= 0)
     }
 }
