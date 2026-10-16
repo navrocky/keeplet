@@ -368,6 +368,10 @@ Rectangle {
                         function onItemUidsChanged() { list.syncRows() }
                     }
                     Component.onCompleted: syncRows()
+                    Connections {
+                        target: screen.editor
+                        function onNoteKeyChanged() { list.doneExpanded = false }
+                    }
 
                     function sumHeights(indexes) {
                         var total = 0
@@ -377,7 +381,8 @@ Rectangle {
                     readonly property real openHeight: sumHeights(screen.editor.openIndexes)
                     readonly property real doneHeight: sumHeights(screen.editor.doneIndexes)
                     readonly property real doneTop: openHeight + rowHeight
-                    property bool doneExpanded: true
+                    // Finished items start folded, for every note that is opened.
+                    property bool doneExpanded: false
                     property real contentHeight: openHeight + (doneCount > 0 ? rowHeight + (doneExpanded ? doneHeight : 0) : 0)
                     Behavior on contentHeight {
                         NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }

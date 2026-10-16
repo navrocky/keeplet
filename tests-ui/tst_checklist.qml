@@ -68,6 +68,15 @@ Item {
             list().doneExpanded = true
         }
 
+        function test_doneSectionIsFoldedWhenANoteIsOpened() {
+            notes.currentNoteKey = ""
+            list().doneExpanded = true
+            notes.currentNoteKey = "acc/l"
+            tryCompare(list(), "doneExpanded", false)
+            tryCompare(rowOf(1), "visible", false)
+            list().doneExpanded = true
+        }
+
         function test_rowsAreInTheirSections() {
             var l = list()
             verify(l)
@@ -193,7 +202,7 @@ Item {
 
         function test_insertingAnItemKeepsTheOtherRowsAndSlidesThem() {
             var l = list()
-            wait(200)
+            wait(500)
             var before = [rowOf(0), rowOf(1), rowOf(2), rowOf(3)]   // a, b, c, d
             var y = before[2].y                                     // c, an open item below a
             focusOn(0, 1)
