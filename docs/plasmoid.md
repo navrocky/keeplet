@@ -34,6 +34,12 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   dependency from `onXxxChanged` of another property; use `Component.onCompleted`.
 - Don't name a property the same as the id you bind it to (`Foo { auth: auth }` is a binding loop).
 
+## Performance notes
+- `tests-ui/bench_checklist.qml` (run with `qmltestrunner6 -input tests-ui/bench_checklist.qml`, prints `BENCH` lines) times add/remove/toggle/flush on a 40-item list inside a 1500-note account (6000 nodes).
+  Before/after: add item 46 -> 8 ms, remove 49 -> 3 ms, the save 0.8 s after the last change 275 -> 8 ms.
+- After a local edit `NotesViewModel._afterWrite(a, noteId)` rebuilds only that note (`session.note`, `Nodes.buildNote`) instead of every note
+  (`Nodes.buildNotes` costs ~120-170 ms for 6000 nodes); sync results and structural changes still rebuild everything.
+
 ## Storage is asynchronous
 - Services (`LocalDb`, `NotesCache`, `AccountsService`, `SecretStore`) return **Promises**; nothing in a ViewModel may wait for
   storage. `LocalDb` queues operations and runs one per event-loop turn, coalesces writes to one key, answers a read of a key
@@ -68,7 +74,7 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   structure/check changes, not while typing). The array itself is never split, so a checked item keeps its relative place
   when unchecked. `NoteScreen` positions rows by hand (one delegate per item, `y` from section and place): checking,
   dragging (handle at the row start, `moveItemInSection`) and folding the Done section are animations of `y`, `opacity`
-  and height. Items are multi-line (`TextArea`, Enter = next item, Shift+Enter = line break); rows are as tall as their text but not below the one-line height, rows report their heights and `tops` stacks them. Structural edits (add/remove/clear/move) set `list.instant` because delegates are bound to indexes.
+  and height. Items are multi-line (`TextArea`, Enter = next item, Shift+Enter = line break); rows are as tall as their text but not below the one-line height, rows report their heights and `tops` stacks them. Rows are **identity-stable**: every item has a client-side `uid` (`NoteEditorViewModel.itemUids`, never saved) and `NoteScreen` keeps a `ListModel` of rows in step with it (insert/remove/move), so an insert creates one row and the others just slide (their `y` follows the item's new place) instead of being rebound to other items.
 - `convertToList` / `convertToText` (capability `convertType`) switch the note type, keeping check marks as Markdown task lines (`- [x] text`, `core/checklist.js`; plain lines when nothing is checked); `asText` feeds "Copy as text"; `clearDone` removes checked items.
 
 ## List interactions

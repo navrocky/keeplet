@@ -64,9 +64,8 @@ Item {
             var n = notes.store["acc/l"]
             n.items = JSON.parse(JSON.stringify(fresh))
             notes.currentNoteKey = "acc/l"
-            wait(50)
+            wait(150)
             list().doneExpanded = true
-            list().instant = false
         }
 
         function test_rowsAreInTheirSections() {
@@ -192,34 +191,28 @@ Item {
             tryVerify(function () { return fieldOf(2).activeFocus })
         }
 
-        function watchRows() {
-            var counts = {}
-            for (var i = 0; i < 8; i++) {
-                var r = rowOf(i)
-                if (!r)
-                    continue
-                counts[i] = 0
-                ;(function (k, row) { row.yChanged.connect(function () { counts[k]++ }) })(i, r)
-            }
-            return counts
+        function test_insertingAnItemKeepsTheOtherRowsAndSlidesThem() {
+            var l = list()
+            wait(200)
+            var before = [rowOf(0), rowOf(1), rowOf(2), rowOf(3)]   // a, b, c, d
+            var y = before[2].y                                     // c, an open item below a
+            focusOn(0, 1)
+            keyClick(Qt.Key_Return)                                 // new item below a
+            compare(texts(), "a,,b,c,d")
+            // The old items keep their delegates (no rebinding to other items): a, b, c, d are now items 0, 2, 3, 4.
+            verify(rowOf(0) === before[0] && rowOf(2) === before[1] && rowOf(3) === before[2] && rowOf(4) === before[3])
+            verify(before[2].y === y, "c has not jumped yet")       // it slides rather than jumps
+            tryVerify(function () { return before[2].y > y })
+            tryCompare(before[2], "y", l.rowHeight * 2)             // after the new open item
         }
 
-        function test_insertingOrRemovingAnItemMovesRowsInOneJumpNotAnimation() {
-            var l = list()
-            editor.setItemText(2, "a\nb\nc")                     // rows of different heights: they report late
-            wait(300)
-            var counts = watchRows()
-            focusOn(0, 1)
-            keyClick(Qt.Key_Return)                               // new item below a
-            verify(l.instant, "rows jump while the items are rearranged")
-            wait(600)
-            for (var k in counts)
-                verify(counts[k] <= 2, "row " + k + " moved in " + counts[k] + " steps")
-            tryVerify(function () { return !l.instant })          // and animations are back afterwards
-            counts = watchRows()
-            editor.toggleItem(0)
-            wait(400)
-            verify(counts[0] > 3 || counts[1] > 3, "checking an item still animates")
+        function test_removingAnItemDestroysOnlyItsRow() {
+            var rowA = rowOf(0)
+            var rowC = rowOf(2)
+            editor.removeItem(1)                                    // b
+            compare(texts(), "a,c,d")
+            tryVerify(function () { return rowOf(3) === undefined })
+            verify(rowOf(0) === rowA && rowOf(1) === rowC)
         }
 
         function test_dragHandleReordersWithinTheSection() {

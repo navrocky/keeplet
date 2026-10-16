@@ -321,30 +321,54 @@ Rectangle {
                     readonly property int rowHeight: Math.max(Kirigami.Units.gridUnit * 2, probe.implicitHeight)
                     readonly property int openCount: screen.editor.openIndexes.length
                     readonly property int doneCount: screen.editor.doneIndexes.length
-                    // Item index -> its row's height; delegates report it.
-                    property var rowHeights: []
-                    function heightOf(index) { return rowHeights[index] || rowHeight }
-                    // Rows report their heights in one go (a new item or a resize of the list makes many at once).
-                    property var _reported: ({})
-                    function setHeight(index, h) {
-                        if (rowHeights[index] === h && !(index in _reported))
+                    // Item uid -> its row's height; delegates report it.
+                    property var rowHeights: ({})
+                    function heightOf(index) {
+                        var it = screen.note !== null ? screen.note.items[index] : null
+                        return (it && rowHeights[it.uid]) || rowHeight
+                    }
+                    function setHeight(uid, h) {
+                        if (rowHeights[uid] === h)
                             return
-                        _reported[index] = h
-                        Qt.callLater(applyHeights)
+                        var copy = Object.assign({}, rowHeights)
+                        copy[uid] = h
+                        rowHeights = copy
                     }
-                    function applyHeights() {
-                        var copy = rowHeights.slice()
-                        var changed = false
-                        Object.keys(_reported).forEach(function (k) {
-                            if (copy[k] !== _reported[k]) {
-                                copy[k] = _reported[k]
-                                changed = true
+                    function indexOfUid(uid) { return screen.editor.itemIndexOf(uid) }
+
+                    // One row per item, kept in step with the editor's items: rows are inserted, removed and moved,
+                    // never rebound to another item, so an insert costs one new row and the others just slide.
+                    ListModel { id: rows }
+                    function syncRows() {
+                        var want = screen.editor.itemUids
+                        var wanted = {}
+                        want.forEach(function (u) { wanted[u] = true })
+                        for (var i = rows.count - 1; i >= 0; i--) {
+                            if (!wanted[rows.get(i).uid])
+                                rows.remove(i)
+                        }
+                        for (var k = 0; k < want.length; k++) {
+                            if (k < rows.count && rows.get(k).uid === want[k])
+                                continue
+                            var from = -1
+                            for (var m = k + 1; m < rows.count; m++) {
+                                if (rows.get(m).uid === want[k]) {
+                                    from = m
+                                    break
+                                }
                             }
-                        })
-                        _reported = ({})
-                        if (changed)
-                            rowHeights = copy
+                            if (from >= 0)
+                                rows.move(from, k, 1)
+                            else
+                                rows.insert(k, { uid: want[k] })
+                        }
                     }
+                    Connections {
+                        target: screen.editor
+                        function onItemUidsChanged() { list.syncRows() }
+                    }
+                    Component.onCompleted: syncRows()
+
                     function sumHeights(indexes) {
                         var total = 0
                         indexes.forEach(function (i) { total += heightOf(i) })
@@ -354,12 +378,8 @@ Rectangle {
                     readonly property real doneHeight: sumHeights(screen.editor.doneIndexes)
                     readonly property real doneTop: openHeight + rowHeight
                     property bool doneExpanded: true
-                    // True while the items themselves change (add, remove, move, clear): rows then jump
-                    // instead of sliding, because delegates are bound to indexes, not to items.
-                    property bool instant: false
                     property real contentHeight: openHeight + (doneCount > 0 ? rowHeight + (doneExpanded ? doneHeight : 0) : 0)
                     Behavior on contentHeight {
-                        enabled: !list.instant
                         NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
                     }
 
@@ -449,32 +469,22 @@ Rectangle {
                         dragIndex = -1
                         dragOffset = 0
                     }
-                    // Delegates are bound to indexes, so after an insert/remove every row suddenly shows another item and
-                    // reports its height a moment later (callLater + the text area's polish). Rows must jump, not slide:
-                    // keep `instant` on until that has settled.
-                    function structural(change) {
-                        instant = true
-                        change()
-                        settleTimer.restart()
-                    }
-                    Timer {
-                        id: settleTimer
-                        interval: 150
-                        onTriggered: list.instant = false
-                    }
+                    // (Kept as a seam for commands that rearrange items.)
+                    function structural(change) { change() }
 
                     // Only to measure a one-line row.
                     QQC2.TextArea { id: probe; visible: false }
 
                     Repeater {
                         id: items
-                        model: screen.isList ? screen.note.items.length : 0
+                        model: rows
 
                         delegate: Item {
                             id: row
-                            required property int index
-                            readonly property var item: screen.note !== null && screen.note.items[index]
-                                                        ? screen.note.items[index] : null
+                            required property string uid
+                            // The item's place in the note; rows follow their item when it moves.
+                            readonly property int index: list.indexOfUid(uid)
+                            readonly property var item: screen.note !== null && index >= 0 ? screen.note.items[index] : null
                             readonly property bool done: item !== null && item.checked
                             readonly property bool dragging: list.dragIndex === index
                             readonly property bool hidden: done && !list.doneExpanded
@@ -494,8 +504,8 @@ Rectangle {
 
                             width: list.width
                             height: Math.max(list.rowHeight, line.implicitHeight)
-                            onHeightChanged: list.setHeight(index, height)
-                            Component.onCompleted: list.setHeight(index, height)
+                            onHeightChanged: list.setHeight(uid, height)
+                            Component.onCompleted: list.setHeight(uid, height)
                             z: dragging ? 10 : 0
                             y: {
                                 var pl = list.places[index]
@@ -509,13 +519,12 @@ Rectangle {
                                 return list.tops[index] === undefined ? 0 : list.tops[index]
                             }
                             Behavior on y {
-                                enabled: !list.instant && !row.dragging
+                                enabled: !row.dragging
                                 NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
                             }
                             opacity: hidden ? 0 : 1
                             visible: opacity > 0 || !hidden
                             Behavior on opacity {
-                                enabled: !list.instant
                                 NumberAnimation { duration: Kirigami.Units.longDuration }
                             }
 

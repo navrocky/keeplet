@@ -39,6 +39,18 @@ QtObject {
     // Checklist split into sections: indexes into note.items of the unchecked / checked items, in item order
     // (so an item keeps its relative place when it is checked and unchecked again). They change only when
     // an item is added, removed, moved or (un)checked, never while typing, so Views can use them as models.
+    // Stable id of every item of the open note (client side only, never saved): lets a View keep one row per item
+    // while items are inserted, removed or moved. Changes only when that sequence changes.
+    property var itemUids: []
+    function itemIndexOf(uid) {
+        if (note === null)
+            return -1
+        for (var i = 0; i < note.items.length; i++) {
+            if (note.items[i].uid === uid)
+                return i
+        }
+        return -1
+    }
     property var openIndexes: []
     property var doneIndexes: []
     readonly property bool hasDone: doneIndexes.length > 0
@@ -268,7 +280,15 @@ QtObject {
     // --- Internals
     function _clone(o) { return JSON.parse(JSON.stringify(o)) }
 
+    property int _uidSeq: 0
+    function _ensureUids(n) {
+        n.items.forEach(function (it) { if (!it.uid) it.uid = "u" + (++_uidSeq) })
+    }
+
     function _refreshSections() {
+        var uids = note === null ? [] : note.items.map(function (it) { return it.uid })
+        if (JSON.stringify(uids) !== JSON.stringify(itemUids))
+            itemUids = uids
         var open = [], done = []
         if (note !== null && note.type === "LIST")
             note.items.forEach(function (it, i) { (it.checked ? done : open).push(i) })
@@ -290,6 +310,7 @@ QtObject {
         var before = _clone(note)
         var after = _clone(note)
         fn(after)
+        _ensureUids(after)
         if (JSON.stringify(after) === JSON.stringify(before))
             return
         History.record(_history, before, key, Date.now())
@@ -343,7 +364,10 @@ QtObject {
         _history = History.create({ limit: historyLimit, window: coalesceWindow })
         _unsaved = false
         var stored = noteKey ? notes.noteByKey(noteKey) : null
-        note = stored ? _clone(stored) : null
+        var copy = stored ? _clone(stored) : null
+        if (copy)
+            _ensureUids(copy)
+        note = copy
         _refreshFlags()
     }
 

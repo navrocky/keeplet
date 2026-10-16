@@ -485,4 +485,21 @@ TestCase {
         c.editor.undo()
         compare(texts(c.editor), "a,b,c,c1,d")
     }
+
+    function test_itemsKeepTheirUidAcrossEditsAndUndo() {
+        var c = open(items5())
+        var uids = c.editor.itemUids.slice()
+        compare(uids.length, 5)
+        compare(new Set(uids).size, 5)
+        c.editor.setItemText(0, "typing")
+        compare(c.editor.itemUids.join(), uids.join())         // typing does not touch the sequence
+        c.editor.addItem(0)
+        compare(c.editor.itemUids.length, 6)
+        compare(c.editor.itemUids[0], uids[0])
+        compare(c.editor.itemUids[2], uids[1])                  // the others kept theirs
+        c.editor.removeItem(0)
+        c.editor.undo()                                         // the removed item is back with its own uid
+        compare(c.editor.itemUids[0], uids[0])
+        compare(c.editor.itemIndexOf(uids[3]), 4)
+    }
 }
