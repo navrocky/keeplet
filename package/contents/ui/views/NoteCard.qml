@@ -11,6 +11,8 @@ Rectangle {
     id: card
 
     required property var note
+    // Show which account the note belongs to (when notes of several accounts are listed together).
+    property bool showAccount: false
 
     // Palette follows the theme; overridable for previews and tests.
     property bool dark: KeepColors.isDark(Kirigami.Theme.backgroundColor)
@@ -91,6 +93,16 @@ Rectangle {
             text: i18np("☑ %1 done", "☑ %1 done", card.doneCount)
             color: card.textColor
             opacity: 0.7
+        }
+
+        PlasmaComponents.Label {
+            Layout.fillWidth: true
+            visible: card.showAccount && !!card.note.accountName
+            text: card.note.accountName
+            color: card.textColor
+            opacity: 0.6
+            font: Kirigami.Theme.smallFont
+            elide: Text.ElideRight
         }
 
         Flow {

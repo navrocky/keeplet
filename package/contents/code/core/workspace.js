@@ -23,6 +23,7 @@ function annotate(account, notes, labels) {
         for (var k in n)
             copy[k] = n[k]
         copy.accountKey = key
+        copy.accountName = account.displayName || ""
         copy.providerId = account.providerId
         copy.key = noteKey(key, n.id)
         copy.labels = (n.labels || []).map(function (l) {

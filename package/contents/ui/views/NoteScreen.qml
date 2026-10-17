@@ -148,6 +148,7 @@ Rectangle {
                 // Only for a new note that is not stored yet and can go to several accounts.
                 visible: screen.editor.accountChoices.length > 1
                 icon.name: "user"
+                text: screen.note ? screen.note.accountName : ""
                 onClicked: { accountMenu.items.active = true; accountMenu.visualParent = accountButton; accountMenu.openRelative() }
                 PlasmaComponents.ToolTip.text: i18n("Account")
                 PlasmaComponents.ToolTip.visible: hovered

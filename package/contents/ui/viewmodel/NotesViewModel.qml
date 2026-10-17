@@ -302,7 +302,7 @@ QtObject {
         }
         var list = type === "LIST"
         draft = {
-            id: "", key: "", accountKey: accountKey, providerId: _accs[accountKey].provider.id,
+            id: "", key: "", accountKey: accountKey, accountName: _accs[accountKey].account.displayName, providerId: _accs[accountKey].provider.id,
             type: list ? "LIST" : "NOTE", title: "", text: "",
             items: list ? [{ id: "", text: "", checked: false, indent: 0 }] : [],
             images: [], color: "DEFAULT", pinned: false, archived: selected === "archive", trashed: false,

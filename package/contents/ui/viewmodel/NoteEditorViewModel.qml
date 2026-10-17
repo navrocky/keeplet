@@ -144,8 +144,10 @@ QtObject {
             return
         if (note.id && !_moveFrom)
             _moveFrom = { key: note.key, id: note.id, accountKey: note.accountKey }
+        var target = notes.writableAccounts().filter(function (a) { return a.key === accountKey })[0]
         _change("", function (n) {
             n.accountKey = accountKey
+            n.accountName = target ? target.name : ""
             n.labels = []
             if (_moveFrom) {
                 n.id = ""
