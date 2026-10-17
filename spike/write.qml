@@ -20,6 +20,7 @@ Item {
     property var state: Nodes.createState()
     property string sessionId: KeepApi.newSessionId()
     property var created: []      // ids of nodes this run created
+    property var createdLabels: [] // mainIds of labels this run created (only these are ever edited or deleted)
     property string authValue: "" // never printed
 
     function log(s) { console.log(s) }
@@ -125,6 +126,49 @@ Item {
         })
     }
 
+    // A label as gkeepapi's Label.save() builds it.
+    function newLabel(name) {
+        var id = genId()
+        createdLabels.push(id)
+        return { mainId: id, name: name, timestamps: stamps(), lastMerged: now() }
+    }
+    function labelCopy(id, fn) {
+        var raw = state.labels[id]
+        if (!raw)
+            throw new Error("label " + id + " is not in the local state (server did not echo it?)")
+        var copy = JSON.parse(JSON.stringify(raw))
+        fn(copy)
+        copy.timestamps.updated = now()
+        copy.lastMerged = now()
+        return copy
+    }
+    function noteLabelIds(id) {
+        var n = state.nodes[id]
+        return n ? JSON.stringify(n.labelIds || []) : "(note not in state)"
+    }
+
+    // Sends labels (userInfo.labels) and optionally nodes in one /changes request and prints the echoes.
+    function pushLabels(label, labels, nodes) {
+        return authToken().then(function (token) {
+            var body = KeepApi.buildRequest(state, nodes || [], sessionId)
+            body.userInfo = { labels: labels }
+            log("")
+            log("   request userInfo.labels: " + JSON.stringify(labels))
+            return KeepApi.changes(token, body).then(function (resp) {
+                report(label, nodes || [], resp)
+                var echoed = (resp.userInfo && resp.userInfo.labels) || []
+                log("   response userInfo.labels (" + echoed.length + "): " + JSON.stringify(echoed))
+                log("   response userInfo keys: " + Object.keys(resp.userInfo || {}).join(",") + "  top-level keys: " + Object.keys(resp).join(","))
+                labels.forEach(function (l) {
+                    var r = echoed.filter(function (e) { return e.mainId === l.mainId })[0]
+                    log("   label " + l.mainId + " '" + l.name + "': " + (r ? "echoed as '" + r.name + "'" : "NOT echoed (mainId kept? check the list above)"))
+                })
+                Nodes.applyChanges(state, resp)
+                return state
+            })
+        })
+    }
+
     // --- scenario
     property var steps: []
 
@@ -190,6 +234,33 @@ Item {
                 })])
             })
         }])
+        out.push(["labels: create, attach, rename, delete (throwaway labels only)", function () {
+            var a, b
+            return pushLabels("5c. create a throwaway label (userInfo.labels only)", [a = newLabel(tag + " label A")]).then(function () {
+                log("   label A in local state after the response: " + (a.mainId in state.labels))
+                return push("5d. attach label A to the test note", [edit(note.id, function (c) {
+                    c.labelIds = (c.labelIds || []).concat([{ labelId: a.mainId, deleted: never }])
+                })])
+            }).then(function () {
+                return pushLabels("5e. rename label A", [labelCopy(a.mainId, function (c) { c.name = tag + " label A (renamed)" })])
+            }).then(function () {
+                log("   test note labelIds now: " + noteLabelIds(note.id))
+                b = newLabel(tag + " label B")
+                return pushLabels("5f. create label B and attach it to the test note in the SAME request", [b],
+                                  [edit(note.id, function (c) { c.labelIds = (c.labelIds || []).concat([{ labelId: b.mainId, deleted: never }]) })])
+            }).then(function () {
+                return pushLabels("5g. delete label A (timestamps.deleted = now)", [labelCopy(a.mainId, function (c) { c.timestamps.deleted = now() })])
+            }).then(function () {
+                log("   label A still in local state after delete: " + (a.mainId in state.labels))
+                log("   test note labelIds after deleting A (does the server strip the link?): " + noteLabelIds(note.id))
+                return KeepApi.sync(authValue, state, [], undefined)
+            }).then(function () {
+                log("   after a fresh pull: label A present: " + (a.mainId in state.labels) + "; test note labelIds: " + noteLabelIds(note.id))
+                return pushLabels("5h. delete label B", [labelCopy(b.mainId, function (c) { c.timestamps.deleted = now() })])
+            }).then(function () {
+                log("   label B still in local state after delete: " + (b.mainId in state.labels))
+            })
+        }])
         out.push(["trash", function () {
             var nodes = [note, list].map(function (n) {
                 return edit(n.id, function (c) { c.timestamps.trashed = now() })
@@ -210,24 +281,42 @@ Item {
         return created.filter(function (id) { return id in state.nodes })
     }
 
+    function leftoverLabels() {
+        return createdLabels.filter(function (id) { return id in state.labels })
+    }
+
     function cleanup() {
         var left = leftovers()
-        if (left.length === 0)
+        var leftLabels = leftoverLabels()
+        if (left.length === 0 && leftLabels.length === 0)
             return Promise.resolve()
+        if (left.length === 0) {
+            log("")
+            log("!! deleting " + leftLabels.length + " leftover test label(s)")
+            return pushLabels("cleanup labels", leftLabels.map(function (id) {
+                return labelCopy(id, function (c) { c.timestamps.deleted = now() })
+            })).catch(function (e) {
+                log("!! label cleanup failed: " + e + ". Delete labels named '" + tag + " label...' manually.")
+            })
+        }
         log("")
         log("!! cleaning up " + left.length + " leftover test node(s)")
         var nodes = left.map(function (id) {
             return edit(id, function (c) { c.timestamps.trashed = now(); c.timestamps.deleted = now() })
         })
-        return push("cleanup", nodes).catch(function (e) {
+        return push("cleanup", nodes).then(function () {
+            return leftLabels.length === 0 ? null : pushLabels("cleanup labels", leftLabels.map(function (id) {
+                return labelCopy(id, function (c) { c.timestamps.deleted = now() })
+            }))
+        }).catch(function (e) {
             log("!! cleanup failed: " + e + ". Delete notes titled '" + tag + "...' manually.")
         })
     }
 
     function finish(ok) {
         log("")
-        log(ok ? "RESULT: OK. Leftover test nodes: " + leftovers().length
-               : "RESULT: FAILED. Leftover test nodes: " + leftovers().length)
+        log(ok ? "RESULT: OK. Leftover test nodes: " + leftovers().length + ", labels: " + leftoverLabels().length
+               : "RESULT: FAILED. Leftover test nodes: " + leftovers().length + ", labels: " + leftoverLabels().length)
         Qt.exit(ok ? 0 : 1)
     }
 
@@ -248,7 +337,7 @@ Item {
         }).then(function () {
             log("")
             log("== final pull: test nodes still present: " + leftovers().length)
-            finish(leftovers().length === 0)
+            finish(leftovers().length === 0 && leftoverLabels().length === 0)
         }).catch(function (e) {
             log("")
             log("!! step failed: " + e + (e && e.kind ? " [" + e.kind + " " + e.status + "]" : ""))

@@ -23,9 +23,10 @@ else
 This writes to your REAL Google Keep account. It will:
   - create two notes titled "keeplet write test (note)" and "keeplet write test (list)",
   - edit them (title, text, color, pin, archive, checklist items, their order, one existing label on the test note only),
+  - create two throwaway labels named "keeplet write test label ...", attach, rename and delete them,
   - move them to the trash and delete them for good.
 It never modifies a note it did not create. If a step fails it tries to delete what it created;
-anything left over has a title starting with "keeplet write test".
+anything left over has a title or label name starting with "keeplet write test".
 EOF
     read -rp "Continue? [y/N] " answer
     [[ "$answer" == "y" || "$answer" == "Y" ]] || { echo "Aborted."; exit 1; }
