@@ -12,6 +12,7 @@ TestCase {
         id: notesComp
         QtObject {
             property string currentNoteKey: ""
+            readonly property string draftKey: "<new>"
             property var store: ({})
             property var saved: []        // snapshots passed to saveNote, in order
             property var removed: []
@@ -382,6 +383,31 @@ TestCase {
         c.editor.undo()
         compare(c.editor.note.accountKey, "acc")
         compare(c.editor.note.labels.length, 1)
+    }
+
+    function test_changingAccountOfEmptyNewNoteStoresNothing() {
+        var c = open(noteData({ id: "", key: "<new>", title: "", text: "" }))
+        c.editor.setAccount("acc2")
+        c.editor.close()
+        compare(c.notes.saved.length, 0)
+    }
+
+    function test_storedDraftMovesToOtherAccount() {
+        var c = open(noteData({ id: "", key: "<new>", title: "Hi", text: "" }))
+        c.editor.setTitle("Hi2")
+        c.editor._save()
+        var first = c.notes.saved[0]
+        compare(first.accountKey, "acc")
+        verify(c.editor.note.id !== "")
+        compare(c.editor.accountChoices.length, 2)        // still a draft
+        c.editor.setAccount("acc2")
+        c.editor._save()
+        compare(c.notes.saved.length, 2)
+        compare(c.notes.saved[1].accountKey, "acc2")
+        compare(c.notes.saved[1].id, "")
+        compare(c.notes.removed.length, 1)
+        compare(c.notes.removed[0], "acc/new1")
+        verify(!c.editor.canUndo)
     }
 
     function test_storedNoteCannotChangeAccount() {

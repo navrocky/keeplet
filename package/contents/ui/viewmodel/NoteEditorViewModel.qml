@@ -75,9 +75,10 @@ QtObject {
     // Whether the account of the note lets the user create labels (the picker offers "New label").
     readonly property bool canCreateLabel: note !== null && notes.canEditLabels(note.accountKey)
 
-    // A new note that has not been stored yet may still be moved to another account.
+    // A note being created (even after its first autosave) may still be moved to another account.
     readonly property bool isNewUnsaved: note !== null && note.id === ""
-    readonly property var accountChoices: isNewUnsaved ? notes.writableAccounts() : []
+    readonly property bool isDraft: note !== null && noteKey === notes.draftKey
+    readonly property var accountChoices: isDraft ? notes.writableAccounts() : []
 
     // Asks the View to focus an item (after addItem).
     signal itemFocusRequested(int index)
@@ -136,13 +137,21 @@ QtObject {
         return ""
     }
 
-    // Moves a new, not yet stored note to another account; labels belong to an account, so they are dropped.
+    // Moves a note being created to another account; labels belong to an account, so they are dropped.
+    // A copy that was already autosaved is deleted from the old account once the new one is stored.
     function setAccount(accountKey) {
-        if (!isNewUnsaved || !notes.canWrite(accountKey) || note.accountKey === accountKey)
+        if (!isDraft || !notes.canWrite(accountKey) || note.accountKey === accountKey)
             return
+        if (note.id && !_moveFrom)
+            _moveFrom = { key: note.key, id: note.id, accountKey: note.accountKey }
         _change("", function (n) {
             n.accountKey = accountKey
             n.labels = []
+            if (_moveFrom) {
+                n.id = ""
+                n.key = ""
+                n.items.forEach(function (it) { it.id = "" })
+            }
         })
     }
 
@@ -304,6 +313,12 @@ QtObject {
     }
 
     // --- Internals
+    property var _moveFrom: null    // {key, id, accountKey} of the stored copy a draft is being moved away from
+
+    function _isBlank(n) {
+        return n.title === "" && n.text === "" && !n.items.some(function (i) { return i.text !== "" })
+    }
+
     function _clone(o) { return JSON.parse(JSON.stringify(o)) }
 
     property int _uidSeq: 0
@@ -348,6 +363,8 @@ QtObject {
 
     // Switches the working copy to a snapshot from the history and schedules its save.
     function _adopt(snapshot) {
+        if (snapshot.id)
+            _moveFrom = null    // undone before the new copy was stored: the old note stays as it was
         note = snapshot
         _unsaved = true
         _refreshFlags()
@@ -359,12 +376,22 @@ QtObject {
         if (!_unsaved || note === null)
             return
         _unsaved = false
+        // A new note with nothing in it is not stored (switching its account must not leave an empty note behind).
+        if (!note.id && !_moveFrom && _isBlank(note))
+            return
         // The note may have been deleted elsewhere while it was open: don't bring it back.
         if (note.id && notes.noteByKey(note.key) === null)
             return
         var key = notes.saveNote(note)
         if (!key)
             return
+        if (_moveFrom) {
+            // The new copy is stored (the open draft now points at it); only then the old one goes.
+            notes.removeNote(_moveFrom)
+            _moveFrom = null
+            _history = History.create({ limit: historyLimit, window: coalesceWindow })
+            _refreshFlags()
+        }
         var stored = notes.noteByKey(key)
         if (stored)
             _adoptIds(stored)
@@ -389,6 +416,7 @@ QtObject {
         _timer.stop()
         _history = History.create({ limit: historyLimit, window: coalesceWindow })
         _unsaved = false
+        _moveFrom = null
         var stored = noteKey ? notes.noteByKey(noteKey) : null
         var copy = stored ? _clone(stored) : null
         if (copy)
