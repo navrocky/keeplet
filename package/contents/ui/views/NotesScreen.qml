@@ -580,6 +580,8 @@ Item {
 
                         // Marks where the carried note would land.
                         Rectangle {
+                            // In content coordinates, like the slots (otherwise it drifts by the scrolled distance).
+                            parent: list.contentItem
                             visible: view.insertIndex >= 0
                             x: 0
                             y: view.placeholderY
