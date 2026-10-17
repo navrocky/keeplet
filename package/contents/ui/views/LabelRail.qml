@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.extras as PlasmaExtras
 
 // Left rail: account switcher (several accounts only) and groups. Collapses to icons.
 // Presentation only: the item list, counts and selection live in NotesViewModel.
@@ -25,12 +26,68 @@ Item {
 
     // Names of built-in groups are user-facing text, derived from the item kind.
     function groupName(item) {
+        if (item.type === "addLabel")
+            return i18n("New label\u2026")
         switch (item.kind) {
         case "all": return i18n("All notes")
         case "unlabeled": return i18n("No label")
         case "archive": return i18n("Archive")
         case "trash": return i18n("Trash")
         default: return item.name
+        }
+    }
+
+    // --- Label management (create from the "New label" row, rename / delete from a label's menu)
+    property var _target: null   // {kind: "create"|"rename"|"delete", accountKey, labelKey, labelId, name}
+
+    function _askName(kind, item) {
+        var isRename = kind === "rename"
+        rail._target = { kind: kind, accountKey: item.accountKey, labelKey: isRename ? item.key.substring("label:".length) : "",
+                         labelId: isRename ? item.key.substring(item.key.indexOf("|") + 1) : "", name: item.name || "" }
+        nameDialog.title = isRename ? i18n("Rename label") : i18n("New label")
+        nameDialog.initialName = isRename ? item.name : ""
+        nameDialog.check = function (name) {
+            return rail.vm.labelNameError(rail._target.accountKey, name, rail._target.labelId)
+        }
+        nameDialog.open()
+    }
+
+    function _askDelete(item) {
+        rail._target = { kind: "delete", accountKey: item.accountKey, labelKey: item.key.substring("label:".length), name: item.name }
+        deleteDialog.open()
+    }
+
+    LabelNameDialog {
+        id: nameDialog
+        onSubmitted: name => {
+            if (rail._target.kind === "rename")
+                rail.vm.renameLabel(rail._target.labelKey, name)
+            else
+                rail.vm.createLabel(rail._target.accountKey, name)
+        }
+    }
+
+    Kirigami.PromptDialog {
+        id: deleteDialog
+        title: i18n("Delete label")
+        subtitle: rail._target ? i18n("Delete the label \u201c%1\u201d? The notes stay, they just lose this label.", rail._target.name) : ""
+        standardButtons: Kirigami.Dialog.Ok | Kirigami.Dialog.Cancel
+        onAccepted: rail.vm.deleteLabel(rail._target.labelKey)
+    }
+
+    PlasmaExtras.Menu {
+        id: labelMenu
+        property var item: null
+
+        PlasmaExtras.MenuItem {
+            text: i18n("Rename\u2026")
+            icon: "edit-rename"
+            onClicked: rail._askName("rename", labelMenu.item)
+        }
+        PlasmaExtras.MenuItem {
+            text: i18n("Delete\u2026")
+            icon: "edit-delete"
+            onClicked: rail._askDelete(labelMenu.item)
         }
     }
 
@@ -74,11 +131,13 @@ Item {
                 id: row
                 required property var modelData
                 readonly property bool isHeader: modelData.type === "header"
+                readonly property bool isAdd: modelData.type === "addLabel"
+                readonly property bool editable: modelData.kind === "label" && rail.vm.canEditLabels(modelData.accountKey)
 
                 width: groups.width
                 // Headers are not selectable.
                 enabled: !isHeader
-                highlighted: !isHeader && rail.vm.selected === modelData.key
+                highlighted: !isHeader && !isAdd && rail.vm.selected === modelData.key
                 topPadding: isHeader ? Kirigami.Units.largeSpacing : Kirigami.Units.smallSpacing
                 bottomPadding: Kirigami.Units.smallSpacing
                 leftPadding: Kirigami.Units.smallSpacing * 2
@@ -87,12 +146,12 @@ Item {
                 // A note being dragged over a group that would accept it.
                 readonly property bool dropHover: dropArea.containsDrag && dropArea.accepted
                 // A note is being carried and this group could take it.
-                readonly property bool takesDrag: rail.dragNoteKey !== "" && !isHeader && modelData.droppable
+                readonly property bool takesDrag: rail.dragNoteKey !== "" && !isHeader && !!modelData.droppable
                                                   && rail.vm.canDrop(rail.dragNoteKey, modelData.key)
 
                 transformOrigin: Item.Left
                 scale: dropHover ? 1.1 : (takesDrag ? 1.03 : 1)
-                opacity: rail.dragNoteKey === "" || isHeader || takesDrag ? 1 : 0.45
+                opacity: rail.dragNoteKey === "" || isHeader || isAdd || takesDrag ? 1 : 0.45
                 Behavior on scale {
                     NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
                 }
@@ -100,15 +159,27 @@ Item {
                     NumberAnimation { duration: Kirigami.Units.shortDuration }
                 }
 
-                onClicked: rail.vm.select(modelData.key)
-                QQC2.ToolTip.text: rail.groupName(modelData) + (isHeader ? "" : " (" + modelData.count + ")")
+                onClicked: isAdd ? rail._askName("create", modelData) : rail.vm.select(modelData.key)
+                QQC2.ToolTip.text: rail.groupName(modelData) + (isHeader || isAdd ? "" : " (" + modelData.count + ")")
                 QQC2.ToolTip.visible: hovered && rail.collapsed
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+                // Right click or long press on a label: rename / delete.
+                TapHandler {
+                    enabled: row.editable
+                    acceptedButtons: Qt.RightButton
+                    onTapped: { labelMenu.item = row.modelData; labelMenu.visualParent = row; labelMenu.openRelative() }
+                }
+                TapHandler {
+                    enabled: row.editable
+                    acceptedButtons: Qt.LeftButton
+                    onLongPressed: { labelMenu.item = row.modelData; labelMenu.visualParent = row; labelMenu.openRelative() }
+                }
 
                 DropArea {
                     id: dropArea
                     anchors.fill: parent
-                    enabled: !row.isHeader && row.modelData.droppable
+                    enabled: !row.isHeader && !row.isAdd && !!row.modelData.droppable
                     // Whether the note under the pointer may go here; set when it enters.
                     property bool accepted: false
                     onEntered: drag => {
@@ -136,10 +207,10 @@ Item {
                     spacing: Kirigami.Units.smallSpacing
 
                     Kirigami.Icon {
-                        source: row.modelData.icon
+                        source: row.isAdd ? "list-add" : row.modelData.icon
                         Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
                         Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
-                        opacity: row.isHeader ? 0.7 : 1
+                        opacity: row.isHeader || row.isAdd ? 0.7 : 1
                     }
 
                     QQC2.Label {
@@ -152,8 +223,8 @@ Item {
                     }
 
                     QQC2.Label {
-                        visible: !rail.collapsed && !row.isHeader
-                        text: row.isHeader ? "" : row.modelData.count
+                        visible: !rail.collapsed && !row.isHeader && !row.isAdd
+                        text: row.isHeader || row.isAdd ? "" : row.modelData.count
                         opacity: 0.6
                     }
                 }

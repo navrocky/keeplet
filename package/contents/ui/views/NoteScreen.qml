@@ -26,6 +26,14 @@ Rectangle {
     }
     Component.onCompleted: lastNote = editor.note
 
+    // "New label…" of the label picker: creates the label in the note's account and puts the note into it.
+    LabelNameDialog {
+        id: newLabelDialog
+        title: i18n("New label")
+        check: function (name) { return screen.editor.labelNameError(name) }
+        onSubmitted: name => screen.editor.createLabel(name)
+    }
+
     // Palette follows the theme; overridable for previews and tests.
     property bool dark: KeepColors.isDark(Kirigami.Theme.backgroundColor)
     readonly property bool colored: note !== null && KeepColors.has(note.color)
@@ -166,7 +174,7 @@ Rectangle {
 
             PlasmaComponents.ToolButton {
                 id: labelsButton
-                visible: screen.editor.labelChoices.length > 0
+                visible: screen.editor.labelChoices.length > 0 || screen.editor.canCreateLabel
                 enabled: screen.editor.editable
                 icon.name: "tag"
                 onClicked: { labelsMenu.items.active = true; labelsMenu.visualParent = labelsButton; labelsMenu.openRelative() }
@@ -175,6 +183,14 @@ Rectangle {
 
                 PlasmaExtras.Menu {
                     id: labelsMenu
+
+                    PlasmaExtras.MenuItem {
+                        visible: screen.editor.canCreateLabel
+                        text: i18n("New label\u2026")
+                        icon: "list-add"
+                        onClicked: newLabelDialog.open()
+                    }
+                    PlasmaExtras.MenuItem { separator: true; visible: screen.editor.canCreateLabel }
 
                     // Filled when the menu is first opened (the menu is a native window, created on demand).
                     property Instantiator items: Instantiator {
