@@ -519,7 +519,8 @@ Item {
                                     NumberAnimation { duration: Kirigami.Units.shortDuration }
                                 }
                                 note: slot.modelData
-                                showAccount: view.accountsVm.multiAccount && view.vm.accountFilter === ""
+                                showAccount: view.vm.showAccounts
+                                accountIcon: view.vm.accountIcon(slot.modelData.accountKey)
                             }
                         }
 

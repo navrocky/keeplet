@@ -397,17 +397,40 @@ QtObject {
     // is not the trash, is not filtered by a search, and the provider can reorder.
     readonly property bool reorderEnabled: _canReorderHere()
 
+    // The one account whose notes the list shows ("" when several are mixed): the account filter, the owner
+    // of the selected label / "No label" group, or the only account. Updated with every filter run.
+    property string scopeAccountKey: ""
+    // Notes of several accounts are listed together: cards show their account.
+    property bool showAccounts: false
+
     function _scopeAccountKey() {
         if (accountFilter)
             return accountFilter
         var keys = Object.keys(_accs)
-        return keys.length === 1 ? keys[0] : ""
+        if (keys.length === 1)
+            return keys[0]
+        if (selected.indexOf("unlabeled:") === 0)
+            return selected.substring("unlabeled:".length)
+        if (selected.indexOf("label:") === 0) {
+            var key = selected.substring("label:".length)
+            for (var i = 0; i < labels.length; i++) {
+                if (labels[i].key === key)
+                    return labels[i].accountKey
+            }
+        }
+        return ""
+    }
+
+    // Icon of an account's provider (for cards), or "".
+    function accountIcon(accountKey) {
+        var a = _accs[accountKey]
+        return a ? a.provider.icon : ""
     }
 
     function _canReorderHere() {
         if (searchText.trim() !== "" || selected === "trash")
             return false
-        var key = _scopeAccountKey()
+        var key = scopeAccountKey
         if (!key || !_accs[key])
             return false
         var a = _accs[key]
@@ -436,7 +459,7 @@ QtObject {
             if (notes[i].key === noteKey)
                 note = notes[i]
         }
-        if (!note || note.accountKey !== _scopeAccountKey())
+        if (!note || note.accountKey !== scopeAccountKey)
             return false
         var list = _without(noteKey)
         var pinned = _pinnedCount(list)
@@ -820,7 +843,10 @@ QtObject {
     function _applyFilter() {
         _validateSelection()
         var sel = _selection(selected)
-        var opts = { accountFilter: accountFilter, query: searchText, accountCount: Object.keys(_accs).length }
+        scopeAccountKey = _scopeAccountKey()
+        showAccounts = Object.keys(_accs).length > 1 && scopeAccountKey === ""
+        var opts = { accountFilter: accountFilter, query: searchText, accountCount: Object.keys(_accs).length,
+                     singleAccount: scopeAccountKey !== "" }
         for (var k in sel)
             opts[k] = sel[k]
         notes = Workspace.visibleNotes(_all, opts)

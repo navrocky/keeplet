@@ -13,6 +13,7 @@ Rectangle {
     required property var note
     // Show which account the note belongs to (when notes of several accounts are listed together).
     property bool showAccount: false
+    property string accountIcon: ""
 
     // Palette follows the theme; overridable for previews and tests.
     property bool dark: KeepColors.isDark(Kirigami.Theme.backgroundColor)
@@ -95,14 +96,25 @@ Rectangle {
             opacity: 0.7
         }
 
-        PlasmaComponents.Label {
+        RowLayout {
             Layout.fillWidth: true
             visible: card.showAccount && !!card.note.accountName
-            text: card.note.accountName
-            color: card.textColor
-            opacity: 0.6
-            font: Kirigami.Theme.smallFont
-            elide: Text.ElideRight
+            spacing: Kirigami.Units.smallSpacing
+            opacity: 0.75
+
+            Kirigami.Icon {
+                visible: card.accountIcon !== ""
+                source: card.accountIcon
+                Layout.preferredWidth: Kirigami.Units.iconSizes.small
+                Layout.preferredHeight: Kirigami.Units.iconSizes.small
+            }
+            PlasmaComponents.Label {
+                Layout.fillWidth: true
+                text: card.note.accountName
+                color: card.textColor
+                font: Kirigami.Theme.smallFont
+                elide: Text.ElideRight
+            }
         }
 
         Flow {

@@ -857,8 +857,24 @@ TestCase {
         var two = make([entry(keepAcc, { data: orderedData([40, 30]) }), entry(workAcc, { data: workData() })])
         tryVerify(function () { return two.vm.notes.length > 3 })
         verify(!two.vm.reorderEnabled)                 // several accounts are sorted by update time
+        verify(two.vm.showAccounts)                    // cards say where they come from
         two.vm.selectAccount("fake:work")
         verify(two.vm.reorderEnabled)
+        verify(!two.vm.showAccounts)
+    }
+
+    function test_groupOfOneAccountKeepsItsOwnOrderEvenWithSeveralAccounts() {
+        var two = make([entry(keepAcc, { data: orderedData([40, 30]) }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return two.vm.notes.length > 3 })
+        two.vm.select("unlabeled:fake:me@x")
+        compare(two.vm.scopeAccountKey, "fake:me@x")
+        verify(two.vm.reorderEnabled)
+        verify(!two.vm.showAccounts)
+        compare(visibleIds(two.vm), "P,n40,n30")       // provider order, not update time
+        verify(two.vm.canMoveTo("fake:me@x/n30", 1))
+        verify(two.vm.moveNote("fake:me@x/n30", 1))
+        two.vm.select("all")
+        verify(!two.vm.reorderEnabled)
     }
 
     function test_moveBetweenNeighboursTakesTheMiddleOrder() {

@@ -55,7 +55,7 @@ function _byOrder(a, b) { return b.order - a.order }
 function _byUpdated(a, b) { return a.updated < b.updated ? 1 : (a.updated > b.updated ? -1 : 0) }
 
 // opts: {accountFilter: "" | accountKey, view: "notes"|"archive"|"trash", labelKey: "", unlabeled: bool, unlabeledAccount: accountKey,
-//        query: "", accountCount: n}
+//        query: "", accountCount: n, singleAccount: bool}
 // Order: pinned first; within an account provider's own order, across accounts most recently updated first.
 function visibleNotes(all, opts) {
     var query = (opts.query || "").trim().toLowerCase()
@@ -77,7 +77,7 @@ function visibleNotes(all, opts) {
             return false
         return !query || _matches(n, query)
     })
-    var single = !!opts.accountFilter || (opts.accountCount || 0) <= 1
+    var single = !!opts.accountFilter || !!opts.singleAccount || (opts.accountCount || 0) <= 1
     out.sort(single ? _byOrder : _byUpdated)
     return out.filter(function (n) { return n.pinned })
               .concat(out.filter(function (n) { return !n.pinned }))

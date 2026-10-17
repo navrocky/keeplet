@@ -72,7 +72,9 @@ hidden `accountsRevision` config key so running widgets reload. The type comes f
 ## Multi-account behavior
 - Account key: `"<providerId>:<accountId>"`; note key `"<accountKey>/<noteId>"`; label key `"<accountKey>|<labelId>"`.
   Labels belong to an account, so equal names in different accounts stay separate groups.
-- One account in scope → provider's own order (`order`, descending); several → most recently updated first.
+- One account in scope → provider's own order (`order`, descending) and manual reordering; several → most recently updated first.
+  The scope is the account filter, the owner of the selected label / "No label" group, or the only account (`NotesViewModel.scopeAccountKey`).
+  Cards show their account when the list mixes accounts (`showAccounts`).
   Pinned notes are always first.
 - A failure of one account never hides the others (`NotesViewModel.errors` is per account).
 - With several accounts listed together a note card shows its account name (`note.accountName`); a new note
