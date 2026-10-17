@@ -43,6 +43,7 @@ Item {
         case "unarchived": return i18n("Note unarchived.")
         case "labeled": return i18n("Added to \u201c%1\u201d.", action.label)
         case "unlabeled": return i18n("Removed from all labels.")
+        case "moved": return i18n("Note moved.")
         default: return ""
         }
     }

@@ -59,7 +59,7 @@ QtObject {
     property var currentNote: null      // the open note (kept fresh on every sync), or null
 
     // The last undoable action, for a short "Undo" notice in the View:
-    //   {kind: "trashed"|"archived"|"unarchived"|"labeled"|"unlabeled", noteKey, label (name, for labeled)}
+    //   {kind: "trashed"|"archived"|"unarchived"|"labeled"|"unlabeled"|"moved", noteKey, label (name, for labeled)}
     property var lastAction: null
     // Account that received the last new note; the default target for the next one.
     property string lastAccountKey: ""
