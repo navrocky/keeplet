@@ -79,8 +79,9 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 
 ## List interactions
 - Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a right-button `TapHandler`
-  (context menu) and one `DragHandler` with only the x axis enabled (so vertical drags keep scrolling). Delegates
-  are destroyed when they scroll out of view; handlers on them would lose the end of a running drag.
+  (context menu) and a `PointHandler` + hold `Timer`: a card is picked up by holding it still (~450 ms; it sinks
+  slightly while pressed as a hint), then it follows the pointer in any direction and the list stops flicking.
+  Moving before the hold ends is a plain scroll. Delegates are destroyed when they scroll out of view; handlers on them would lose the end of a running drag.
 - `DragLayer` is the floating ghost. It is a **sibling** of the screen's layout (never inside it: a full-size
   child of a layout takes the room of the content) and is invisible unless a drag runs. A drag always ends:
   drop, cancel (selection, account filter or open note changed) or the watchdog.
