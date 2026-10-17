@@ -231,7 +231,7 @@ TestCase {
     // --- groups, rail and navigation (stage A)
 
     function railKeys(vm) {
-        return vm.rail.map(function (i) { return i.type === "header" ? "#" + i.accountKey : i.key }).join()
+        return vm.rail.map(function (i) { return i.type === "header" ? "#" + i.accountKey : (i.type === "addLabel" ? "+" + i.accountKey : i.key) }).join()
     }
     function groupCount(vm, key) {
         var g = vm.rail.filter(function (i) { return i.key === key })[0]
@@ -250,7 +250,7 @@ TestCase {
     function test_railSingleAccountIsFlat() {
         var c = make([entry(keepAcc, { data: personalData() })])
         tryVerify(function () { return c.vm.loaded })
-        compare(railKeys(c.vm), "all,unlabeled,label:fake:me@x|L1,archive,trash")
+        compare(railKeys(c.vm), "all,unlabeled,label:fake:me@x|L1,+fake:me@x,archive,trash")
         verify(c.vm.railVisible)
         compare(groupCount(c.vm, "all"), 2)
         compare(groupCount(c.vm, "unlabeled"), 1)
@@ -265,14 +265,86 @@ TestCase {
     function test_railMultiAccountGroupsLabelsUnderAccountHeaders() {
         var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
         tryVerify(function () { return c.vm.notes.length === 3 })
-        compare(railKeys(c.vm), "all,unlabeled,#fake:me@x,label:fake:me@x|L1,#fake:work,label:fake:work|L1,archive,trash")
+        compare(railKeys(c.vm), "all,unlabeled,#fake:me@x,label:fake:me@x|L1,+fake:me@x,#fake:work,label:fake:work|L1,+fake:work,archive,trash")
         compare(c.vm.rail[2].name, "me@x")
         // Counts follow the account scope.
         c.vm.selectAccount("fake:work")
-        compare(railKeys(c.vm), "all,unlabeled,label:fake:work|L1,archive,trash")
+        compare(railKeys(c.vm), "all,unlabeled,label:fake:work|L1,+fake:work,archive,trash")
         compare(groupCount(c.vm, "all"), 1)
         c.vm.selectAccount("")
         compare(groupCount(c.vm, "all"), 3)
+    }
+
+    // --- label editing
+
+    function noEditEntry(account, opts) {
+        var e = entry(account, opts)
+        var caps = JSON.parse(JSON.stringify(Fake.capabilities))
+        caps.labelEdit = false
+        e.provider = { id: Fake.id, name: Fake.name, icon: Fake.icon, capabilities: caps }
+        return e
+    }
+
+    function test_createLabelShowsInRailAndIsQueued() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        var made = c.vm.createLabel("fake:me@x", "  Ideas ")
+        compare(made.name, "Ideas")
+        compare(made.key, "fake:me@x|" + made.id)
+        verify(railKeys(c.vm).indexOf("label:" + made.key) >= 0)
+        compare(c.vm.unsynced, 1)
+        tryVerify(function () { return c.vm.unsynced === 0 })   // sent by the write timer
+    }
+
+    function test_createLabelRejectsEmptyAndTakenNames() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        compare(c.vm.createLabel("fake:me@x", "  "), null)
+        compare(c.vm.createLabel("fake:me@x", "work"), null)   // "Work" exists, ignoring case
+        compare(c.vm.labelNameError("fake:me@x", ""), "empty")
+        compare(c.vm.labelNameError("fake:me@x", "WORK"), "exists")
+        compare(c.vm.labelNameError("fake:me@x", "WORK", "L1"), "")   // renaming it to itself is fine
+        compare(c.vm.labelNameError("fake:me@x", "Fresh"), "")
+        compare(c.vm.labels.length, 1)
+    }
+
+    function test_renameLabelUpdatesNotesAndKeepsSelection() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.select("label:fake:me@x|L1")
+        verify(c.vm.renameLabel("fake:me@x|L1", "Job"))
+        compare(c.vm.selected, "label:fake:me@x|L1")
+        compare(ids(c.vm), "b")
+        compare(c.vm.notes[0].labels[0].name, "Job")
+        verify(!c.vm.renameLabel("fake:me@x|L1", ""))
+        verify(!c.vm.renameLabel("fake:me@x|nope", "X"))
+    }
+
+    function test_deleteLabelKeepsNotesAndLeavesTheGroup() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        c.vm.select("label:fake:me@x|L1")
+        verify(c.vm.deleteLabel("fake:me@x|L1"))
+        compare(c.vm.selected, "all")
+        compare(ids(c.vm), "b,a")   // the note stays, unlabeled now
+        compare(c.vm.labels.length, 0)
+        verify(!c.vm.deleteLabel("fake:me@x|L1"))
+    }
+
+    function test_accountWithoutLabelsStillOffersToCreateOne() {
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: { notes: [], labels: [] } })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(railKeys(c.vm).indexOf("#fake:work,+fake:work") >= 0)
+    }
+
+    function test_providerWithoutLabelEditHasNoLabelCommands() {
+        var c = make([noEditEntry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(!c.vm.canEditLabels("fake:me@x"))
+        compare(c.vm.createLabel("fake:me@x", "X"), null)
+        verify(!c.vm.renameLabel("fake:me@x|L1", "X"))
+        verify(!c.vm.deleteLabel("fake:me@x|L1"))
+        compare(railKeys(c.vm), "all,unlabeled,label:fake:me@x|L1,archive,trash")
     }
 
     function test_accountTabsListAllPlusAccounts() {

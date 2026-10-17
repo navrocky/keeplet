@@ -204,6 +204,64 @@ QtObject {
         })
     }
 
+    // Whether labels of this account can be created, renamed and deleted (provider capability).
+    function canEditLabels(accountKey) {
+        var a = _accs[accountKey]
+        return !!a && !a.broken && !!a.provider.capabilities.labelEdit && typeof a.session.createLabel === "function"
+    }
+
+    // Why `name` cannot name a label of the account: "" (it can), "empty" or "exists" (another label has it,
+    // ignoring case). `exceptLabelId` is the label being renamed. The View turns the code into text.
+    function labelNameError(accountKey, name, exceptLabelId) {
+        var n = String(name === undefined || name === null ? "" : name).trim().replace(/\s+/g, " ").toLowerCase()
+        if (n === "")
+            return "empty"
+        var taken = labelsOf(accountKey).some(function (l) {
+            return l.id !== exceptLabelId && l.name.toLowerCase() === n
+        })
+        return taken ? "exists" : ""
+    }
+
+    // Creates a label in the account; returns {id, name, key} or null (cannot edit, invalid or taken name).
+    function createLabel(accountKey, name) {
+        if (!canEditLabels(accountKey) || labelNameError(accountKey, name) !== "")
+            return null
+        var a = _accs[accountKey]
+        var made = a.session.createLabel(a.state, name)
+        if (!made)
+            return null
+        _afterWrite(a)
+        return { id: made.id, name: made.name, key: Workspace.labelKey(accountKey, made.id) }
+    }
+
+    function _labelByKey(labelKey) {
+        return labels.filter(function (l) { return l.key === labelKey })[0] || null
+    }
+
+    // Renames a label ("<accountKey>|<labelId>"); returns whether it was renamed.
+    function renameLabel(labelKey, name) {
+        var l = _labelByKey(labelKey)
+        if (!l || !canEditLabels(l.accountKey) || labelNameError(l.accountKey, name, l.id) !== "")
+            return false
+        var a = _accs[l.accountKey]
+        if (!a.session.renameLabel(a.state, l.id, name))
+            return false
+        _afterWrite(a)
+        return true
+    }
+
+    // Deletes a label from its account; its notes stay, only the label is removed from them.
+    function deleteLabel(labelKey) {
+        var l = _labelByKey(labelKey)
+        if (!l || !canEditLabels(l.accountKey))
+            return false
+        var a = _accs[l.accountKey]
+        if (!a.session.deleteLabel(a.state, l.id))
+            return false
+        _afterWrite(a)
+        return true
+    }
+
     // Labels of one account: [{id, name, key, accountKey}].
     function labelsOf(accountKey) {
         return labels.filter(function (l) { return l.accountKey === accountKey })
@@ -665,14 +723,20 @@ QtObject {
             if (multi && !accountFilter) {
                 scope.forEach(function (a) {
                     var own = inScope.filter(function (l) { return l.accountKey === a.account.key }).sort(byName)
-                    if (own.length === 0)
+                    var editable = canEditLabels(a.account.key)
+                    if (own.length === 0 && !editable)
                         return
                     items.push({ type: "header", accountKey: a.account.key, name: a.account.displayName,
                                  icon: a.provider.icon })
                     own.forEach(function (l) { items.push(labelItem(l)) })
+                    if (editable)
+                        items.push({ type: "addLabel", accountKey: a.account.key })
                 })
             } else {
                 inScope.slice().sort(byName).forEach(function (l) { items.push(labelItem(l)) })
+                // One account in view: the place to create its labels.
+                if (scope.length === 1 && canEditLabels(scope[0].account.key))
+                    items.push({ type: "addLabel", accountKey: scope[0].account.key })
             }
         }
         if (hasArchive)
