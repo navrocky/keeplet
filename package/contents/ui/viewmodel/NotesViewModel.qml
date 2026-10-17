@@ -454,23 +454,27 @@ QtObject {
         return notes.filter(function (n) { return n.key !== noteKey })
     }
 
-    // Whether the note may be inserted at `index` of the list without it. Pinned notes stay among the
-    // pinned ones, the others among the rest (pinning is changed with the pin button).
-    function canMoveTo(noteKey, index) {
+    // The range of `index` (in the list without the note) the note may be inserted at: {from, to}, or null.
+    // Pinned notes stay among the pinned ones, the others among the rest (pinning is changed with the pin button).
+    function moveBounds(noteKey) {
         if (!reorderEnabled)
-            return false
+            return null
         var note = null
         for (var i = 0; i < notes.length; i++) {
             if (notes[i].key === noteKey)
                 note = notes[i]
         }
         if (!note || (scopeAccountKey !== "" && note.accountKey !== scopeAccountKey))
-            return false
+            return null
         var list = _without(noteKey)
         var pinned = _pinnedCount(list)
-        var from = note.pinned ? 0 : pinned
-        var to = note.pinned ? pinned : list.length
-        return index >= from && index <= to
+        return { from: note.pinned ? 0 : pinned, to: note.pinned ? pinned : list.length }
+    }
+
+    // Whether the note may be inserted at `index` of the list without it.
+    function canMoveTo(noteKey, index) {
+        var b = moveBounds(noteKey)
+        return !!b && index >= b.from && index <= b.to
     }
 
     // The orders to assign so that `note` sits at `index` of `list` (the visible list without it), as

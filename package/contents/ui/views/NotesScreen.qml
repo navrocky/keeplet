@@ -122,8 +122,9 @@ Item {
                     found = lastSeen + 1
                 if (found >= 0) {
                     index = carried >= 0 && found > carried ? found - 1 : found
-                    if (!view.vm.canMoveTo(dragLayer.noteKey, index))
-                        index = -1
+                    // Over the other section (pinned / not pinned): the nearest place of its own one.
+                    var bounds = view.vm.moveBounds(dragLayer.noteKey)
+                    index = bounds ? Math.max(bounds.from, Math.min(bounds.to, index)) : -1
                 }
             }
         }

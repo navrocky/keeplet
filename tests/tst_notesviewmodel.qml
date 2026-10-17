@@ -879,6 +879,18 @@ TestCase {
         verify(two.vm.reorderEnabled)
     }
 
+    function test_moveBoundsKeepPinnedAndOthersApart() {
+        var c = make([entry(keepAcc, { data: orderedData([40, 30]) })])
+        tryVerify(function () { return c.vm.notes.length > 2 })
+        var pinnedKey = c.vm.notes[0].key        // "P" is pinned (see orderedData)
+        var b = c.vm.moveBounds(pinnedKey)
+        compare(b.from, 0)
+        compare(b.to, 0)
+        var other = c.vm.moveBounds(c.vm.notes[1].key)
+        compare(other.from, 1)
+        verify(!c.vm.moveBounds("nope"))
+    }
+
     function test_mixedListKeepsTheOrderTheUserGaveIt() {
         var two = make([entry(keepAcc, { data: orderedData([40, 30]) }), entry(workAcc, { data: workData() })])
         tryVerify(function () { return two.vm.notes.length > 3 })
