@@ -297,6 +297,7 @@ Rectangle {
         }
 
         PlasmaComponents.ScrollView {
+            id: scroller
             Layout.fillWidth: true
             Layout.fillHeight: true
 
@@ -486,10 +487,66 @@ Rectangle {
                     function endDrag() {
                         var pl = dragPlace
                         var to = dragTo
-                        if (pl !== null && to !== pl.pos)
-                            structural(function () { screen.editor.moveItemInSection(pl.done, pl.pos, to) })
+                        // Release the drag first: the move renumbers the items, and dragIndex would then point
+                        // at another row while the carried one animates from a wrong place.
+                        var carried = items.itemAt(dragIndex)
+                        var uid = carried ? carried.uid : ""
+                        var from = carried ? carried.y : 0
+                        settling = true
+                        settleTimer.restart()
                         dragIndex = -1
                         dragOffset = 0
+                        if (pl !== null && to !== pl.pos)
+                            structural(function () { screen.editor.moveItemInSection(pl.done, pl.pos, to) })
+                        // Queued after the rows' own settling: only the carried row slides, from where it was dropped.
+                        Qt.callLater(function () {
+                            for (var i = 0; i < items.count; i++) {
+                                var r = items.itemAt(i)
+                                if (r && r.uid === uid) {
+                                    r.glideFrom(from)
+                                    return
+                                }
+                            }
+                        })
+                    }
+
+                    // After a drop the rows are already where they were carried to: they take their places without
+                    // animation (a move renumbers and recreates rows, which would make them fly in from elsewhere).
+                    property bool settling: false
+                    property string glideUid: ""    // the dropped row, the only one that animates while settling
+                    Timer { id: settleTimer; interval: 400; onTriggered: { list.settling = false; list.glideUid = "" } }
+
+                    // Autoscroll while a row is carried near the top / bottom edge of the view (as for note cards).
+                    property real pointerY: 0           // scene
+                    property real dragTranslation: 0
+                    property real dragStartContentY: 0
+                    readonly property real scrollZone: Kirigami.Units.gridUnit * 2.5
+                    readonly property real scrollSpeed: Kirigami.Units.gridUnit * 0.8
+                    function updateDragOffset() {
+                        dragOffset = dragTranslation + (scroller.contentItem.contentY - dragStartContentY)
+                    }
+                    function autoScrollStep() {
+                        var flick = scroller.contentItem
+                        var y = scroller.mapFromItem(null, 0, pointerY).y
+                        var v = 0
+                        if (y < scrollZone)
+                            v = -Math.min(1, (scrollZone - y) / scrollZone)
+                        else if (y > scroller.height - scrollZone)
+                            v = Math.min(1, (y - (scroller.height - scrollZone)) / scrollZone)
+                        if (v === 0)
+                            return
+                        var maxY = Math.max(0, flick.contentHeight - flick.height)
+                        var next = Math.max(0, Math.min(maxY, flick.contentY + v * scrollSpeed))
+                        if (next === flick.contentY)
+                            return
+                        flick.contentY = next
+                        updateDragOffset()
+                    }
+                    Timer {
+                        interval: 16
+                        repeat: true
+                        running: list.dragIndex >= 0
+                        onTriggered: list.autoScrollStep()
                     }
                     // (Kept as a seam for commands that rearrange items.)
                     function structural(change) { change() }
@@ -527,9 +584,20 @@ Rectangle {
                             width: list.width
                             height: Math.max(list.rowHeight, line.implicitHeight)
                             onHeightChanged: list.setHeight(uid, height)
-                            Component.onCompleted: list.setHeight(uid, height)
+                            Component.onCompleted: {
+                                list.setHeight(uid, height)
+                                // A row created by a move sees the sections one step behind: take its place once settled.
+                                Qt.callLater(function () {
+                                    applyY()
+                                    ready = true
+                                })
+                            }
                             z: dragging ? 10 : 0
-                            y: {
+                            // Where the row belongs. A move updates the note, the sections and the uids one after
+                            // another, so this is briefly inconsistent: y follows it only once things settled
+                            // (the carried row follows at once), else the row would fly in from a wrong place.
+                            property bool ready: false
+                            readonly property real targetY: {
                                 var pl = list.places[index]
                                 if (!pl)
                                     return 0
@@ -540,8 +608,23 @@ Rectangle {
                                 }
                                 return list.tops[index] === undefined ? 0 : list.tops[index]
                             }
+                            function applyY() { y = targetY }
+                            function glideFrom(y0) {
+                                list.glideUid = ""
+                                y = y0
+                                list.glideUid = uid
+                                y = targetY
+                            }
+                            onTargetYChanged: {
+                                if (!ready)
+                                    return
+                                if (dragging)
+                                    applyY()
+                                else
+                                    Qt.callLater(applyY)
+                            }
                             Behavior on y {
-                                enabled: !row.dragging
+                                enabled: row.ready && !row.dragging && (!list.settling || list.glideUid === row.uid)
                                 NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
                             }
                             opacity: hidden ? 0 : 1
@@ -578,15 +661,20 @@ Rectangle {
                                             cursorShape: Qt.ClosedHandCursor
                                             onActiveChanged: {
                                                 if (active) {
+                                                    list.dragStartContentY = scroller.contentItem.contentY
+                                                    list.dragTranslation = 0
                                                     list.dragOffset = 0
                                                     list.dragIndex = row.index
                                                 } else {
                                                     list.endDrag()
                                                 }
                                             }
+                                            onCentroidChanged: list.pointerY = centroid.scenePosition.y
                                             onActiveTranslationChanged: {
-                                                if (active)
-                                                    list.dragOffset = activeTranslation.y
+                                                if (active) {
+                                                    list.dragTranslation = activeTranslation.y
+                                                    list.updateDragOffset()
+                                                }
                                             }
                                         }
                                     }
