@@ -173,7 +173,7 @@ Item {
     ColumnLayout {
         id: content
         anchors.fill: parent
-        spacing: Kirigami.Units.smallSpacing
+        spacing: Kirigami.Units.largeSpacing
 
         RowLayout {
             Layout.fillWidth: true
@@ -326,7 +326,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Kirigami.Units.smallSpacing
+            spacing: Kirigami.Units.largeSpacing
 
             LabelRail {
                 Layout.fillHeight: true
@@ -396,7 +396,7 @@ Item {
                     ListView {
                         id: list
                         model: view.vm.notes
-                        spacing: Kirigami.Units.smallSpacing
+                        spacing: Kirigami.Units.largeSpacing
                         clip: true
 
                         // Pointer handling lives here, on the list, because it must outlive the cards: a delegate is

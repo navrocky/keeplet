@@ -66,7 +66,7 @@ PlasmoidItem {
         QQC2.StackView {
             id: stack
             anchors.fill: parent
-            anchors.margins: Kirigami.Units.smallSpacing
+            anchors.margins: Kirigami.Units.largeSpacing
             initialItem: loadingScreen
 
             replaceEnter: Transition {
