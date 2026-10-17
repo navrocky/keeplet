@@ -856,7 +856,7 @@ TestCase {
 
         var two = make([entry(keepAcc, { data: orderedData([40, 30]) }), entry(workAcc, { data: workData() })])
         tryVerify(function () { return two.vm.notes.length > 3 })
-        verify(!two.vm.reorderEnabled)                 // several accounts are sorted by update time
+        verify(two.vm.reorderEnabled)                  // the mixed list has the widget's own order
         verify(two.vm.showAccounts)                    // cards say where they come from
         two.vm.selectAccount("fake:work")
         verify(two.vm.reorderEnabled)
@@ -874,7 +874,21 @@ TestCase {
         verify(two.vm.canMoveTo("fake:me@x/n30", 1))
         verify(two.vm.moveNote("fake:me@x/n30", 1))
         two.vm.select("all")
-        verify(!two.vm.reorderEnabled)
+        verify(two.vm.reorderEnabled)
+    }
+
+    function test_mixedListKeepsTheOrderTheUserGaveIt() {
+        var two = make([entry(keepAcc, { data: orderedData([40, 30]) }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return two.vm.notes.length > 3 })
+        var keys = two.vm.notes.map(function (n) { return n.key })
+        var last = keys[keys.length - 1]
+        verify(two.vm.canMoveTo(last, 0) || two.vm.canMoveTo(last, 1))
+        var to = two.vm.canMoveTo(last, 0) ? 0 : 1
+        verify(two.vm.moveNote(last, to))
+        compare(two.vm.notes[to].key, last)
+        compare(two.vm.mixedOrder[to], last)
+        verify(two.vm.undoLast())
+        compare(two.vm.notes[keys.length - 1].key, last)
     }
 
     function test_moveBetweenNeighboursTakesTheMiddleOrder() {

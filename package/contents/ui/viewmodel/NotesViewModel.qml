@@ -49,6 +49,8 @@ QtObject {
     property string selected: "all"
     property string accountFilter: "" // accountKey or "" for all accounts
     property bool railCollapsed: false
+    // The user's own order of the mixed list (several accounts): note keys, kept by the widget, not in Keep.
+    property var mixedOrder: []
 
     // --- Navigation
     // Key of the note being created before it has an id (see openNewNote).
@@ -393,8 +395,9 @@ QtObject {
     }
 
     // --- Manual order
-    // The list can be put in a manual order when it shows one account (several are sorted by update time),
-    // is not the trash, is not filtered by a search, and the provider can reorder.
+    // The list can be put in a manual order when it shows one account and the provider can reorder (the order
+    // is kept in Keep), or when it mixes several accounts (the order is `mixedOrder`, kept by the widget).
+    // Never in the trash or while a search filters the list.
     readonly property bool reorderEnabled: _canReorderHere()
 
     // The one account whose notes the list shows ("" when several are mixed): the account filter, the owner
@@ -431,7 +434,9 @@ QtObject {
         if (searchText.trim() !== "" || selected === "trash")
             return false
         var key = scopeAccountKey
-        if (!key || !_accs[key])
+        if (!key)
+            return showAccounts
+        if (!_accs[key])
             return false
         var a = _accs[key]
         return !!a.provider.capabilities.reorder && canWrite(key) && typeof a.session.reorder === "function"
@@ -459,7 +464,7 @@ QtObject {
             if (notes[i].key === noteKey)
                 note = notes[i]
         }
-        if (!note || note.accountKey !== scopeAccountKey)
+        if (!note || (scopeAccountKey !== "" && note.accountKey !== scopeAccountKey))
             return false
         var list = _without(noteKey)
         var pinned = _pinnedCount(list)
@@ -513,6 +518,8 @@ QtObject {
         if (!canMoveTo(noteKey, index))
             return false
         var note = noteByKey(noteKey)
+        if (scopeAccountKey === "")
+            return _moveInMixed(noteKey, index)
         var plan = _orderPlan(note, _without(noteKey), index)
         if (plan.length === 0)
             return false
@@ -526,6 +533,28 @@ QtObject {
         }
         lastAction = { kind: "moved", noteKey: noteKey, label: "" }
         _afterWrite(a)
+        return true
+    }
+
+    // Mixed list: the visible keys (in their current order) with the note moved to `index` become the
+    // new `mixedOrder`; keys of notes that are not visible now keep their place after them.
+    function _moveInMixed(noteKey, index) {
+        var keys = _without(noteKey).map(function (n) { return Workspace.noteKey(n.accountKey, n.id) })
+        keys.splice(index, 0, noteKey)
+        var before = notes.map(function (n) { return Workspace.noteKey(n.accountKey, n.id) })
+        if (keys.join("\n") === before.join("\n"))
+            return false
+        var known = {}
+        keys.forEach(function (k) { known[k] = true })
+        var previous = mixedOrder
+        mixedOrder = keys.concat(previous.filter(function (k) { return !known[k] && noteByKey(k) }))
+        _undo = function () {
+            mixedOrder = previous
+            _applyFilter()
+            return true
+        }
+        lastAction = { kind: "moved", noteKey: noteKey, label: "" }
+        _applyFilter()
         return true
     }
 
@@ -846,7 +875,7 @@ QtObject {
         scopeAccountKey = _scopeAccountKey()
         showAccounts = Object.keys(_accs).length > 1 && scopeAccountKey === ""
         var opts = { accountFilter: accountFilter, query: searchText, accountCount: Object.keys(_accs).length,
-                     singleAccount: scopeAccountKey !== "" }
+                     singleAccount: scopeAccountKey !== "", manualOrder: mixedOrder }
         for (var k in sel)
             opts[k] = sel[k]
         notes = Workspace.visibleNotes(_all, opts)

@@ -55,8 +55,9 @@ function _byOrder(a, b) { return b.order - a.order }
 function _byUpdated(a, b) { return a.updated < b.updated ? 1 : (a.updated > b.updated ? -1 : 0) }
 
 // opts: {accountFilter: "" | accountKey, view: "notes"|"archive"|"trash", labelKey: "", unlabeled: bool, unlabeledAccount: accountKey,
-//        query: "", accountCount: n, singleAccount: bool}
-// Order: pinned first; within an account provider's own order, across accounts most recently updated first.
+//        query: "", accountCount: n, singleAccount: bool, manualOrder: [noteKey]}
+// Order: pinned first; within an account provider's own order, across accounts most recently updated first,
+// or, when the user has put the mixed list in order (`manualOrder`), in that order with unknown notes on top.
 function visibleNotes(all, opts) {
     var query = (opts.query || "").trim().toLowerCase()
     var view = opts.view || "notes"
@@ -78,7 +79,23 @@ function visibleNotes(all, opts) {
         return !query || _matches(n, query)
     })
     var single = !!opts.accountFilter || !!opts.singleAccount || (opts.accountCount || 0) <= 1
-    out.sort(single ? _byOrder : _byUpdated)
+    if (single) {
+        out.sort(_byOrder)
+    } else if (opts.manualOrder && opts.manualOrder.length > 0) {
+        var pos = {}
+        opts.manualOrder.forEach(function (k, i) { pos[k] = i })
+        out.sort(function (a, b) {
+            var pa = pos[noteKey(a.accountKey, a.id)]
+            var pb = pos[noteKey(b.accountKey, b.id)]
+            if (pa === undefined && pb === undefined)
+                return _byUpdated(a, b)
+            if (pa === undefined)
+                return -1
+            return pb === undefined ? 1 : pa - pb
+        })
+    } else {
+        out.sort(_byUpdated)
+    }
     return out.filter(function (n) { return n.pinned })
               .concat(out.filter(function (n) { return !n.pinned }))
 }
