@@ -8,12 +8,15 @@ import "../../code/providers/registry.js" as DefaultRegistry
 // Dependencies (injected so tests can fake them):
 //   service  - {list(), save(account), remove(key), readSecret(key), writeSecret(key, v)}
 //   registry - {list(), get(id)} of providers (default: the release registry)
+//   browser  - optional {available, signIn(request) -> Promise<{token, email}>}: a sign-in window
+//              (services/BrowserSignIn.qml); rejects with {kind: "cancelled"} when the user closes it
 //   configuration - per-instance config; only `accountKeys` (list, empty = all accounts) is read
 QtObject {
     id: vm
 
     required property var service
     property var registry: DefaultRegistry
+    property var browser: null
     property var configuration: ({ accountKeys: [] })
     // Test hook: (account) => options passed to provider.createSession().
     property var sessionOptions: null
@@ -27,8 +30,9 @@ QtObject {
     // Providers a new account can be added for (drives the sign-in form).
     readonly property var providers: registry.list().map(function (p) {
         return { id: p.id, name: p.name, icon: p.icon, credentialFields: p.credentialFields,
-                 signInHelpUrl: p.signInHelpUrl || "" }
+                 signInHelpUrl: p.signInHelpUrl || "", browserSignIn: p.browserSignIn || null }
     })
+    readonly property bool browserAvailable: !!(browser && browser.available)
 
     // False until the first load of the stored accounts has finished (avoids flashing the sign-in form).
     property bool ready: false
@@ -36,7 +40,7 @@ QtObject {
     property bool signInRequested: false   // show the sign-in form even though accounts exist
     // {providerId, accountId} of the account the form signs in again, or null for a new account.
     property var signInTarget: null
-    // "" | "network" | "badCredentials" | "exists" | "failed" ; details for "failed" in errorDetail
+    // "" | "network" | "badCredentials" | "exists" | "wrongAccount" | "failed" ; details for "failed" in errorDetail
     property string error: ""
     property string errorDetail: ""
 
@@ -107,13 +111,36 @@ QtObject {
     }
 
     function signIn(providerId, creds) {
+        _signIn(providerId, function () { return Promise.resolve(creds) })
+    }
+
+    // Signs in through the provider's browser window. The user's e-mail is not asked: the provider learns it.
+    function signInWithBrowser(providerId) {
+        var provider = registry.get(providerId)
+        if (!provider || !provider.browserSignIn || !browserAvailable)
+            return
+        var request = provider.browserSignIn
+        _signIn(providerId, function () {
+            return browser.signIn(request).then(function (r) {
+                var creds = { email: r.email || "" }
+                creds[request.credentialKey] = r.token
+                return creds
+            })
+        })
+    }
+
+    function _signIn(providerId, getCreds) {
         var provider = registry.get(providerId)
         if (!provider || busy)
             return
         busy = true
         error = ""
         errorDetail = ""
-        provider.signIn(creds).then(function (r) {
+        getCreds().then(function (creds) {
+            return provider.signIn(creds)
+        }).then(function (r) {
+            if (signInTarget && signInTarget.accountId !== r.accountId)
+                throw { kind: "wrongAccount" }
             var key = providerId + ":" + r.accountId
             return duplicate(provider, key).then(function () {
                 return service.writeSecret(key, r.secret)
@@ -126,6 +153,8 @@ QtObject {
                 return reload()
             })
         }).catch(function (e) {
+            if (e && e.kind === "cancelled")
+                return // the user closed the window: not an error
             if (Errors.isProviderError(e) || (e && e.kind)) {
                 error = e.kind
                 errorDetail = e.detail || ""

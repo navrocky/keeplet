@@ -195,4 +195,71 @@ TestCase {
         c.vm.cancelSignIn()
         compare(c.vm.signInTarget, null)
     }
+
+    // A provider with a browser sign-in and a fake window service.
+    readonly property var browserProvider: ({
+        id: "web", name: "Web", icon: "x", capabilities: Fake.capabilities, credentialFields: Fake.credentialFields,
+        browserSignIn: { startUrl: "https://example.org", doneMarker: "#close", cookie: "tok", credentialKey: "token" },
+        signIn: function (creds) {
+            return Promise.resolve({ accountId: creds.email || "from-server", displayName: "web", secret: creds.token, meta: {} })
+        },
+        createSession: Fake.createSession
+    })
+    readonly property var webRegistry: ({
+        list: function () { return [browserProvider] },
+        get: function (id) { return id === "web" ? browserProvider : null }
+    })
+
+    function makeWeb(browser) {
+        var svc = serviceComp.createObject(tc, {})
+        var vm = vmComp.createObject(tc, { service: svc, registry: webRegistry, browser: browser,
+                                           configuration: { accountKeys: [] } })
+        return { vm: vm, svc: svc }
+    }
+
+    function test_browserSignInStoresTokenAndLearnedAccount() {
+        var requests = []
+        var c = makeWeb({ available: true, signIn: function (r) {
+            requests.push(r)
+            return Promise.resolve({ token: "T", email: "" })
+        } })
+        verify(c.vm.browserAvailable)
+        c.vm.signInWithBrowser("web")
+        tryCompare(c.vm, "busy", false)
+        compare(requests[0].cookie, "tok")
+        compare(c.svc.secrets["web:from-server"], "T")
+        compare(c.vm.error, "")
+    }
+
+    function test_browserCancelIsNotAnError() {
+        var c = makeWeb({ available: true, signIn: function () { return Promise.reject({ kind: "cancelled" }) } })
+        c.vm.signInWithBrowser("web")
+        tryCompare(c.vm, "busy", false)
+        compare(c.vm.error, "")
+        compare(c.svc.accounts.length, 0)
+    }
+
+    function test_browserFailureReportsCode() {
+        var c = makeWeb({ available: true, signIn: function () { return Promise.reject({ kind: "failed", detail: "cookie not found" }) } })
+        c.vm.signInWithBrowser("web")
+        tryCompare(c.vm, "error", "failed")
+        compare(c.vm.errorDetail, "cookie not found")
+    }
+
+    function test_browserUnavailableDoesNothing() {
+        var called = false
+        var c = makeWeb({ available: false, signIn: function () { called = true; return Promise.resolve({}) } })
+        verify(!c.vm.browserAvailable)
+        c.vm.signInWithBrowser("web")
+        verify(!called)
+        verify(!c.vm.busy)
+    }
+
+    function test_browserSignInAgainRejectsOtherAccount() {
+        var c = makeWeb({ available: true, signIn: function () { return Promise.resolve({ token: "T", email: "other" }) } })
+        c.vm.requestSignIn({ providerId: "web", accountId: "mine" })
+        c.vm.signInWithBrowser("web")
+        tryCompare(c.vm, "error", "wrongAccount")
+        compare(c.svc.accounts.length, 0)
+    }
 }
