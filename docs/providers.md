@@ -23,6 +23,9 @@ A provider is a JS module (`.pragma library`) exporting:
 | `signIn(creds)` | `Promise<{accountId, displayName, secret, meta}>`; rejects with `ProviderError` (`network`, `badCredentials`, `failed`) |
 | `createSession(account, secret, options)` | returns a session (below); `options` is a test hook |
 
+Optional: `browserSignIn` `{startUrl, doneMarker, cookie, credentialKey}` — sign in through a browser window: the
+service opens `startUrl`, waits until the URL ends with `doneMarker`, reads `cookie` and the ViewModel passes it to
+`signIn` as `creds[credentialKey]` (`email` may be empty; see [decisions/0003](decisions/0003-browser-signin.md)).
 Optional: `signInHelpUrl` (the View shows provider-specific instructions; user-facing text lives in Views).
 
 Session:

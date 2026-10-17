@@ -12,7 +12,7 @@ package/
     │   ├── viewmodel/             AccountsViewModel, NotesViewModel, NoteEditorViewModel (QtObject, no visuals)
     │   ├── views/                 SignInView, NotesRoot (navigation), NotesScreen, LabelRail, NoteScreen (editor),
     │   │                          NoteCard, ColorPicker, keepColors.js (layout + bindings)
-    │   ├── services/              LocalDb, SecretStore, AccountsService, NotesCache (platform APIs)
+    │   ├── services/              LocalDb, SecretStore, AccountsService, NotesCache, BrowserSignIn (platform APIs)
     │   └── configGeneral.qml      settings page
     └── config/                    main.xml (KConfigXT schema), config.qml (config pages)
 ```

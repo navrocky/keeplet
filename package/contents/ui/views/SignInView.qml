@@ -17,6 +17,10 @@ ColumnLayout {
     readonly property var provider: accounts.providers.length > 0
                                     ? accounts.providers[Math.max(0, providerCombo.currentIndex)] : null
     property var values: ({})
+    // Sign in through the provider's web page; the token form below is the alternative.
+    readonly property bool browserMode: !!provider && !!provider.browserSignIn && accounts.browserAvailable
+    property bool manual: false
+    readonly property bool showFields: !browserMode || manual
 
     spacing: Kirigami.Units.largeSpacing
 
@@ -26,12 +30,15 @@ ColumnLayout {
         case "network": return i18n("Can't reach the service. Check your connection.")
         case "badCredentials": return i18n("The service rejected these credentials. Get a new token and try again.")
         case "exists": return i18n("An account with this name already exists.")
+        case "wrongAccount": return i18n("You signed in to a different account. Choose the account you are signing in again.")
         default: return i18n("Sign-in failed: %1", detail)
         }
     }
 
     // Provider-specific instructions live here because they are user-facing text.
     function helpText(p) {
+        if (p && p.id === "keep" && !view.showFields)
+            return i18n("A Google sign-in window opens. Keeplet never sees your password: it only receives a one-time token.")
         if (p && p.id === "keep") {
             return i18n("1. Open <a href=\"%1\">accounts.google.com/EmbeddedSetup</a> in your browser and sign in.<br/>"
                         + "2. Open developer tools (F12) → Application/Storage → Cookies.<br/>"
@@ -72,6 +79,7 @@ ColumnLayout {
         Component.onCompleted: select(view.target)
     }
     onTargetChanged: providerCombo.select(target)
+    onProviderChanged: manual = false
 
     PlasmaComponents.Label {
         Layout.fillWidth: true
@@ -86,9 +94,42 @@ ColumnLayout {
         }
     }
 
+    RowLayout {
+        Layout.fillWidth: true
+        visible: view.browserMode
+
+        PlasmaComponents.Button {
+            text: i18n("Sign in with Google")
+            icon.name: "internet-services"
+            highlighted: true
+            enabled: !view.accounts.busy
+            onClicked: view.accounts.signInWithBrowser(view.provider.id)
+        }
+
+        PlasmaComponents.Button {
+            visible: view.accounts.signedIn || view.embedded
+            text: i18n("Cancel")
+            onClicked: view.accounts.cancelSignIn()
+        }
+
+        PlasmaComponents.BusyIndicator {
+            Layout.preferredHeight: Kirigami.Units.gridUnit * 2
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 2
+            visible: view.accounts.busy
+            running: visible
+        }
+    }
+
+    PlasmaComponents.ToolButton {
+        visible: view.browserMode
+        text: view.manual ? i18n("Hide manual sign-in") : i18n("Enter token manually")
+        icon.name: view.manual ? "arrow-up" : "arrow-down"
+        onClicked: view.manual = !view.manual
+    }
+
     Repeater {
         id: fields
-        model: view.provider ? view.provider.credentialFields : []
+        model: view.showFields && view.provider ? view.provider.credentialFields : []
 
         PlasmaComponents.TextField {
             required property var modelData
@@ -110,6 +151,7 @@ ColumnLayout {
 
     RowLayout {
         Layout.fillWidth: true
+        visible: view.showFields
 
         PlasmaComponents.Button {
             text: view.provider && !view.provider.credentialFields.some(function (f) { return f.secret })

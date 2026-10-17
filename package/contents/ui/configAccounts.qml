@@ -12,9 +12,11 @@ import "services"
 KCM.SimpleKCM {
     LocalDb { id: localDb }
     AccountsService { id: accountsService; db: localDb }
+    BrowserSignIn { id: browserSignIn }
     AccountsViewModel {
         id: accountsVm
         service: accountsService
+        browser: browserSignIn
     }
 
     // A centered column of a readable width, like the "About" page, instead of stretching over the dialog.

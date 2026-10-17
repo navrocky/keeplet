@@ -1,11 +1,15 @@
 # Authentication
 
 Port of [gpsoauth](https://github.com/simon-weber/gpsoauth) as used by gkeepapi.
-Password login is not supported (Google blocks it); the user provides an `oauth_token` cookie.
+Password login is not supported (Google blocks it); the widget needs the one-time `oauth_token` cookie.
 
 ## Chain
-1. **oauth_token** — user signs in at <https://accounts.google.com/EmbeddedSetup> in a browser
-   and copies the `oauth_token` cookie (DevTools → Application/Storage → Cookies). Single use.
+1. **oauth_token** — single use. Main way: the widget opens <https://accounts.google.com/EmbeddedSetup> in its own
+   window (`ui/services/BrowserSignIn*.qml`, QtWebEngine), waits for the `#close` URL fragment and reads the HttpOnly
+   cookie through the DevTools protocol ([decisions/0003-browser-signin.md](decisions/0003-browser-signin.md)).
+   Alternative: the user signs in in any browser and pastes the cookie (DevTools → Application/Storage → Cookies).
+   The browser flow does not know the e-mail: `exchange_token` is sent with an empty `Email` and the answer's
+   `Email` becomes the account id (a typed address wins).
 2. **exchange_token** → master token (`aas_et/…`, long-lived, full account access).
 3. **perform_oauth** → auth token for Keep (`Auth`, `Expiry` ≈ 1 h).
 4. Keep requests send `Authorization: OAuth <auth token>`.

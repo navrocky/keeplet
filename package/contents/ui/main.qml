@@ -20,11 +20,13 @@ PlasmoidItem {
     LocalDb { id: localDb }
     AccountsService { id: accountsService; db: localDb }
     NotesCache { id: notesCache; db: localDb }
+    BrowserSignIn { id: browserSignIn }
 
     // ViewModels.
     AccountsViewModel {
         id: accountsVm
         service: accountsService
+        browser: browserSignIn
         configuration: Plasmoid.configuration
     }
 
