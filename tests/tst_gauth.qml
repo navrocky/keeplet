@@ -36,4 +36,9 @@ TestCase {
         verify(!GAuth.isNetworkError(e))
         verify(GAuth.isNetworkError(new GAuth.AuthError("Network", 0)))
     }
+
+    function test_exchangeAcceptsEmptyEmail() {
+        // Browser sign-in does not know the address: the form just carries an empty Email.
+        compare(GAuth.exchangeForm("", "oauth2_4/x", "0123456789abcdef").Email, "")
+    }
 }

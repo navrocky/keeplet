@@ -69,13 +69,19 @@ function post(form) {
     })
 }
 
-// One-time oauth_token cookie -> long-lived master token.
-function exchangeToken(email, oauthToken, androidId) {
+// One-time oauth_token cookie -> long-lived master token and the account e-mail.
+// `email` may be empty (browser sign-in does not know it): Google answers with the account's address.
+// Resolves with {token, email}.
+function exchange(email, oauthToken, androidId) {
     return post(exchangeForm(email, oauthToken, androidId)).then(function (kv) {
         if (!kv.Token)
             throw new AuthError("NoToken", 200)
-        return kv.Token
+        return { token: kv.Token, email: kv.Email || "" }
     })
+}
+
+function exchangeToken(email, oauthToken, androidId) {
+    return exchange(email, oauthToken, androidId).then(function (r) { return r.token })
 }
 
 // Master token -> Keep auth token. Resolves with {token, expiry} (expiry in ms since epoch).

@@ -41,13 +41,26 @@ function _mapError(e) {
     return new Errors.ProviderError("failed", String(e))
 }
 
-// creds: {email, oauthToken}. Resolves with {accountId, displayName, secret, meta}.
+// Sign-in through a browser window (the View shows it): where it starts, which URL fragment means "done"
+// and which cookie holds the one-time token. The token goes to signIn() as creds.oauthToken.
+var browserSignIn = {
+    startUrl: signInHelpUrl,
+    doneMarker: "#close",
+    cookie: "oauth_token",
+    credentialKey: "oauthToken"
+}
+
+// creds: {email, oauthToken}; email may be empty (browser sign-in): then Google tells it.
+// Resolves with {accountId, displayName, secret, meta}.
 function signIn(creds) {
     var email = String(creds.email || "").trim()
     var oauthToken = String(creds.oauthToken || "").trim()
     var androidId = GAuth.newAndroidId()
-    return GAuth.exchangeToken(email, oauthToken, androidId).then(function (master) {
-        return { accountId: email, displayName: email, secret: master, meta: { androidId: androidId } }
+    return GAuth.exchange(email, oauthToken, androidId).then(function (r) {
+        var account = email || r.email   // a typed address wins: the account key must not change
+        if (!account)
+            throw new Errors.ProviderError("failed", "no e-mail")
+        return { accountId: account, displayName: account, secret: r.token, meta: { androidId: androidId } }
     }, function (e) {
         var mapped = _mapError(e)
         // Here "auth" means the one-time token was refused, not that a session expired.
