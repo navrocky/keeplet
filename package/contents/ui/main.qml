@@ -89,7 +89,14 @@ PlasmoidItem {
 
         Component {
             id: signInView
-            SignInView { accounts: accountsVm }
+            // The form sits in a card with the usual KDE margins instead of touching the widget edges.
+            Item {
+                SignInView {
+                    anchors.fill: parent
+                    anchors.margins: Kirigami.Units.gridUnit
+                    accounts: accountsVm
+                }
+            }
         }
 
         Component {

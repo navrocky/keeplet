@@ -15,6 +15,9 @@ Item {
     required property var vm          // NotesViewModel
     required property var accountsVm  // AccountsViewModel
 
+    // One gap everywhere: between the toolbar and the list, and between the rail and the list.
+    readonly property int gap: Kirigami.Units.largeSpacing
+
     // Accounts are managed in the widget's settings dialog.
     function openSettings() {
         Plasmoid.internalAction("configure").trigger()
@@ -173,7 +176,7 @@ Item {
     ColumnLayout {
         id: content
         anchors.fill: parent
-        spacing: Kirigami.Units.largeSpacing
+        spacing: view.gap
 
         RowLayout {
             Layout.fillWidth: true
@@ -326,7 +329,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Kirigami.Units.largeSpacing
+            spacing: view.gap
 
             LabelRail {
                 Layout.fillHeight: true
