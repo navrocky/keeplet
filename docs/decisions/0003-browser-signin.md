@@ -5,7 +5,7 @@ Status: **accepted** (2026-10-17) — the main way to sign in to Keep; pasting `
 ## Question
 Can the widget show Google's sign-in itself and take the one-time `oauth_token` without the user opening DevTools?
 
-## Spikes (`spike/webauth.qml`, `spike/webauth-email.qml`; Qt 6.11, QtWebEngine)
+## Spikes (Qt 6.11, QtWebEngine; removed after the decision, see git history of `spike/webauth*.qml`)
 - `WebEngineView` loads `https://accounts.google.com/EmbeddedSetup` (passkey, password, 2-step all work).
 - The flow ends when the consent page ("I agree") changes the URL fragment to **`#close`** — the signal Android's
   WebView host uses too. No navigation to another page happens.
