@@ -420,6 +420,7 @@ Item {
                         model: view.vm.notes
                         spacing: Kirigami.Units.largeSpacing
                         clip: true
+                        interactive: !hold.armed
 
                         // Pointer handling lives here, on the list, because it must outlive the cards: a delegate is
                         // destroyed when it scrolls out of view, and a drag has to survive that.
@@ -429,7 +430,7 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onTapped: eventPoint => {
                                 var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
-                                if (slot)
+                                if (slot && !hold.carried)
                                     view.vm.openNote(slot.modelData.key)
                             }
                         }
@@ -444,26 +445,56 @@ Item {
                             }
                         }
 
-                        // Only a horizontal move starts a drag (towards the group rail); vertical drags scroll.
-                        DragHandler {
-                            id: noteDrag
+                        // A card is picked up by holding it still for a moment; after that it follows the pointer in any
+                        // direction (towards the rail to give it a group, up/down to put it in another place).
+                        // Moving before the hold is over is a scroll.
+                        PointHandler {
+                            id: hold
                             acceptedButtons: Qt.LeftButton
-                            target: null
-                            xAxis.enabled: true
-                            yAxis.enabled: false
-                            dragThreshold: Kirigami.Units.smallSpacing * 2
+                            property bool armed: false
+                            property bool moved: false
+                            property string pressedKey: ""    // card under a press that may still turn into a hold
+                            property bool carried: false      // this press picked a card up: its release is not a tap
+                            readonly property real slop: Kirigami.Units.gridUnit * 0.6
+
                             onActiveChanged: {
                                 if (active) {
-                                    var slot = list.itemAt(centroid.pressPosition.x, centroid.pressPosition.y)
-                                    if (slot)
-                                        view.beginDrag(slot.modelData, slot.cardItem, centroid.scenePosition)
+                                    moved = false
+                                    carried = false
+                                    var pressed = list.itemAt(point.pressPosition.x, point.pressPosition.y)
+                                    pressedKey = pressed ? pressed.modelData.key : ""
                                 } else {
+                                    pressedKey = ""
+                                }
+                                if (!active && armed) {
+                                    armed = false
                                     view.endDrag()
                                 }
                             }
-                            onCentroidChanged: {
-                                if (active)
-                                    view.moveDrag(centroid.scenePosition)
+                            onPointChanged: {
+                                if (!active)
+                                    return
+                                if (armed) {
+                                    view.moveDrag(point.scenePosition)
+                                } else if (Math.abs(point.position.x - point.pressPosition.x) > slop
+                                           || Math.abs(point.position.y - point.pressPosition.y) > slop) {
+                                    moved = true
+                                    pressedKey = ""
+                                }
+                            }
+                        }
+
+                        Timer {
+                            interval: 450
+                            running: hold.active && !hold.armed && !hold.moved
+                            onTriggered: {
+                                var slot = list.itemAt(hold.point.pressPosition.x, hold.point.pressPosition.y)
+                                if (!slot)
+                                    return
+                                hold.armed = true
+                                hold.pressedKey = ""
+                                hold.carried = true
+                                view.beginDrag(slot.modelData, slot.cardItem, hold.point.scenePosition)
                             }
                         }
 
@@ -515,6 +546,11 @@ Item {
                                 y: slot.gap
                                 width: slot.width
                                 opacity: slot.dragged ? 0 : 1
+                                // Pressed in place: the card sinks a little, a hint that holding picks it up.
+                                scale: hold.pressedKey === slot.modelData.key ? 0.97 : 1
+                                Behavior on scale {
+                                    NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+                                }
                                 Behavior on opacity {
                                     NumberAnimation { duration: Kirigami.Units.shortDuration }
                                 }
