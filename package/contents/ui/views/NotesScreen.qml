@@ -83,7 +83,7 @@ Item {
     // carried card and a placeholder of that size marks the place.
     property int carriedIndex: -1     // list index of the carried note
     property int insertIndex: -1      // where it would go, as an index of the list without it (-1: not over the list)
-    property real placeholderY: 0     // content y of the placeholder
+    property real placeholderY: 0     // content y of the placeholder (set by the slot it lands on, see the delegate)
     property bool reordering: false
     Timer { id: settle; interval: 150; onTriggered: view.reordering = false }
     property bool placeholderLive: false   // the placeholder glides (not at the start, where it just appears)
@@ -123,12 +123,6 @@ Item {
                         index = -1
                 }
             }
-        }
-        if (index >= 0 && carried >= 0) {
-            // Natural place of the placeholder: the slot it takes over (the one now at `index` of the full list).
-            var ref = list.itemAtIndex(index)
-            if (ref)
-                placeholderY = index <= carried ? ref.y : ref.y + ref.height - dragHeight
         }
         carriedIndex = carried
         insertIndex = index
@@ -545,6 +539,15 @@ Item {
 
                             width: list.width
                             height: card.implicitHeight
+
+                            // The placeholder takes the place of the slot it lands on. A binding, not a one-off
+                            // measurement: while the list scrolls the slots are created and laid out later.
+                            Binding {
+                                target: view
+                                property: "placeholderY"
+                                when: view.carriedIndex >= 0 && view.insertIndex === slot.index
+                                value: slot.index <= view.carriedIndex ? slot.y : slot.y + slot.height - view.dragHeight
+                            }
 
                             NoteCard {
                                 id: card
