@@ -260,6 +260,7 @@ TestCase {
         compare(c.vm.rail[0].kind, "all")
         compare(c.vm.rail[2].name, "Work")
         verify(c.vm.rail[1].droppable && c.vm.rail[2].droppable && !c.vm.rail[0].droppable)
+        verify(c.vm.rail[c.vm.rail.length - 1].droppable)
     }
 
     function test_railMultiAccountGroupsLabelsUnderAccountHeaders() {
@@ -606,10 +607,20 @@ TestCase {
         tryVerify(function () { return c.vm.loaded })
         verify(!c.vm.canDrop("fake:me@x/b", "label:fake:me@x|L1"))   // already there
         verify(!c.vm.canDrop("fake:me@x/a", "all"))
-        verify(!c.vm.canDrop("fake:me@x/a", "archive"))
-        verify(!c.vm.canDrop("fake:me@x/a", "trash"))
         verify(!c.vm.dropNote("fake:me@x/a", "all"))
         compare(c.vm.unsynced, 0)
+    }
+
+    function test_dropOnArchiveAndTrashMovesTheNote() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.canDrop("fake:me@x/a", "archive"))
+        verify(c.vm.canDrop("fake:me@x/a", "trash"))
+        verify(c.vm.dropNote("fake:me@x/a", "archive"))
+        verify(c.vm.noteByKey("fake:me@x/a").archived)
+        verify(!c.vm.canDrop("fake:me@x/a", "archive"))
+        verify(c.vm.dropNote("fake:me@x/b", "trash"))
+        verify(c.vm.noteByKey("fake:me@x/b").trashed)
     }
 
     function test_dropOnNoLabelClearsAllLabels() {

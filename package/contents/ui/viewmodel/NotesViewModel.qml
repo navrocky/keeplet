@@ -510,6 +510,11 @@ QtObject {
         var caps = capabilities(note.accountKey)
         if (!caps || caps.labels === "none")
             return null
+        if (railKey === "archive" || railKey === "trash") {
+            if (railKey === "archive" ? (!caps.archive || note.archived || note.trashed) : (!caps.trash || note.trashed))
+                return null
+            return { note: note, kind: railKey }
+        }
         if (railKey === "unlabeled")
             return note.labels.length === 0 ? null : { note: note, labels: [], kind: "unlabeled", name: "" }
         if (railKey.indexOf("label:") !== 0)
@@ -545,6 +550,10 @@ QtObject {
         var plan = _dropPlan(noteKey, railKey)
         if (!plan)
             return false
+        if (plan.kind === "archive")
+            return archiveNote(noteKey, true)
+        if (plan.kind === "trash")
+            return trashNote(noteKey)
         _remember(plan.kind, plan.note, plan.name)
         return updateNote(noteKey, { labels: plan.labels })
     }
@@ -744,10 +753,10 @@ QtObject {
         }
         if (hasArchive)
             items.push({ type: "group", key: "archive", kind: "archive", icon: "archive-insert", accountKey: "",
-                         count: _count({ view: "archive" }), droppable: false })
+                         count: _count({ view: "archive" }), droppable: true })
         if (hasTrash)
             items.push({ type: "group", key: "trash", kind: "trash", icon: "user-trash", accountKey: "",
-                         count: _count({ view: "trash" }), droppable: false })
+                         count: _count({ view: "trash" }), droppable: true })
 
         rail = items
         railVisible = items.length > 1

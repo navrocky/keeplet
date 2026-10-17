@@ -144,7 +144,7 @@ Item {
                 readonly property bool isAdd: modelData.type === "addLabel"
                 readonly property bool editable: modelData.kind === "label" && rail.vm.canEditLabels(modelData.accountKey)
 
-                width: groups.width
+                width: rail.dragNoteKey === "" ? groups.width : groups.width * 0.94
                 // Headers are not selectable.
                 enabled: !isHeader
                 // While a note is carried only the drop states are drawn: a selected row would add a second frame.
@@ -160,7 +160,12 @@ Item {
                 readonly property bool takesDrag: rail.dragNoteKey !== "" && !isHeader && !!modelData.droppable
                                                   && rail.vm.canDrop(rail.dragNoteKey, modelData.key)
 
-                // No scaling: a grown row would be cut off at the edge of the rail.
+                // The row grows from its left edge; while a note is carried it is narrower so it is not cut off.
+                transformOrigin: Item.Left
+                scale: dropHover ? 1.05 : (takesDrag ? 1.02 : 1)
+                Behavior on scale {
+                    NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+                }
                 opacity: rail.dragNoteKey === "" || isHeader || isAdd || takesDrag ? 1 : 0.45
                 Behavior on opacity {
                     NumberAnimation { duration: Kirigami.Units.shortDuration }
