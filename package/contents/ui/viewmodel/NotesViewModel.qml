@@ -43,7 +43,7 @@ QtObject {
 
     // --- Input (set by the View)
     property string searchText: ""
-    // Selected group: "all" | "unlabeled" | "label:<accountKey>|<labelId>" | "archive" | "trash"
+    // Selected group: "all" | "unlabeled" | "unlabeled:<accountKey>" | "label:<accountKey>|<labelId>" | "archive" | "trash"
     // The widget's own icon (shown for "All notes").
     readonly property url appIcon: Qt.resolvedUrl("../../icons/keeplet.svg")
     property string selected: "all"
@@ -273,6 +273,11 @@ QtObject {
             return ""
         if (accountFilter && writable.indexOf(accountFilter) >= 0)
             return accountFilter
+        if (selected.indexOf("unlabeled:") === 0) {
+            var owner = selected.substring("unlabeled:".length)
+            if (writable.indexOf(owner) >= 0)
+                return owner
+        }
         if (selected.indexOf("label:") === 0) {
             var key = selected.substring("label:".length)
             for (var i = 0; i < labels.length; i++) {
@@ -515,8 +520,12 @@ QtObject {
                 return null
             return { note: note, kind: railKey }
         }
-        if (railKey === "unlabeled")
+        if (railKey === "unlabeled" || railKey.indexOf("unlabeled:") === 0) {
+            // A per-account group only takes notes of that account.
+            if (railKey !== "unlabeled" && railKey !== "unlabeled:" + note.accountKey)
+                return null
             return note.labels.length === 0 ? null : { note: note, labels: [], kind: "unlabeled", name: "" }
+        }
         if (railKey.indexOf("label:") !== 0)
             return null
         var key = railKey.substring("label:".length)
@@ -690,6 +699,8 @@ QtObject {
     function _selection(key) {
         if (key === "unlabeled")
             return { view: "notes", unlabeled: true }
+        if (key.indexOf("unlabeled:") === 0)
+            return { view: "notes", unlabeledAccount: key.substring("unlabeled:".length) }
         if (key === "archive")
             return { view: "archive" }
         if (key === "trash")
@@ -721,8 +732,11 @@ QtObject {
         items.push({ type: "group", key: "all", kind: "all", icon: appIcon, accountKey: "",
                      count: _count({}), droppable: false })
         if (hasLabels) {
-            items.push({ type: "group", key: "unlabeled", kind: "unlabeled", icon: "tag-delete", accountKey: "",
-                         count: _count({ unlabeled: true }), droppable: true })
+            // With account headers each account has its own "No label" under its header.
+            var grouped = multi && !accountFilter
+            if (!grouped)
+                items.push({ type: "group", key: "unlabeled", kind: "unlabeled", icon: "tag-delete", accountKey: "",
+                             count: _count({ unlabeled: true }), droppable: true })
             var inScope = labels.filter(function (l) { return !accountFilter || l.accountKey === accountFilter })
             var byName = function (a, b) { return a.name.localeCompare(b.name) }
             function labelItem(l) {
@@ -736,10 +750,15 @@ QtObject {
                 scope.forEach(function (a) {
                     var own = inScope.filter(function (l) { return l.accountKey === a.account.key }).sort(byName)
                     var editable = canEditLabels(a.account.key)
-                    if (own.length === 0 && !editable)
+                    var labeled = a.provider.capabilities.labels !== "none"
+                    if (own.length === 0 && !editable && !labeled)
                         return
                     items.push({ type: "header", accountKey: a.account.key, name: a.account.displayName,
                                  icon: a.provider.icon })
+                    if (a.provider.capabilities.labels !== "none")
+                        items.push({ type: "group", key: "unlabeled:" + a.account.key, kind: "unlabeled",
+                                     icon: "tag-delete", accountKey: a.account.key, droppable: true,
+                                     count: _count({ unlabeledAccount: a.account.key }) })
                     own.forEach(function (l) { items.push(labelItem(l)) })
                     if (editable)
                         items.push({ type: "addLabel", accountKey: a.account.key })
@@ -769,6 +788,11 @@ QtObject {
     function _validateSelection() {
         if (accountFilter && !_accs[accountFilter])
             accountFilter = ""
+        if (selected.indexOf("unlabeled:") === 0) {
+            var owner = selected.substring("unlabeled:".length)
+            if (!_accs[owner] || (accountFilter && accountFilter !== owner))
+                selected = "all"
+        }
         if (selected.indexOf("label:") === 0) {
             var key = selected.substring("label:".length)
             var exists = labels.some(function (l) {

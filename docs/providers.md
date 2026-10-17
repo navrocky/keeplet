@@ -75,3 +75,5 @@ hidden `accountsRevision` config key so running widgets reload. The type comes f
 - One account in scope → provider's own order (`order`, descending); several → most recently updated first.
   Pinned notes are always first.
 - A failure of one account never hides the others (`NotesViewModel.errors` is per account).
+- With several accounts listed together a note card shows its account name (`note.accountName`); a new note
+  can be moved to another account while it is still a draft (the editor deletes an already autosaved copy from the old one).

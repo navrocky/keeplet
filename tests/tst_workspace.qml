@@ -72,6 +72,13 @@ TestCase {
         compare(ids(WS.visibleNotes(all, { labelKey: "fake:b|L1", accountCount: 2 })), "o1")
     }
 
+    function test_unlabeledAccountFiltersByAccount() {
+        var a = [{ key: "x/1", accountKey: "x", labels: [], items: [], title: "", text: "", updated: "1", order: 1, pinned: false, archived: false, trashed: false },
+                 { key: "y/1", accountKey: "y", labels: [], items: [], title: "", text: "", updated: "2", order: 1, pinned: false, archived: false, trashed: false },
+                 { key: "x/2", accountKey: "x", labels: [{ key: "x|L" }], items: [], title: "", text: "", updated: "3", order: 2, pinned: false, archived: false, trashed: false }]
+        compare(WS.visibleNotes(a, { unlabeledAccount: "x", accountCount: 2 }).map(function (n) { return n.key }).join(), "x/1")
+    }
+
     function test_unlabeledOnlyActiveNotesWithoutLabels() {
         var all = WS.merge(parts()).notes
         // k1 and o1 have labels; k3 is archived, k4 trashed.

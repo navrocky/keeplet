@@ -247,6 +247,18 @@ TestCase {
         compare(ids(c.vm), "b,a")  // "all" stays the full, first group
     }
 
+    function test_unlabeledPerAccountInMultiAccountRail() {
+        var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
+        tryVerify(function () { return c.vm.notes.length === 3 })
+        compare(groupCount(c.vm, "unlabeled:fake:me@x"), 1)
+        c.vm.select("unlabeled:fake:me@x")
+        compare(ids(c.vm), "a")                               // only that account's unlabeled note
+        verify(c.vm.canDrop("fake:me@x/b", "unlabeled:fake:me@x"))
+        verify(!c.vm.canDrop("fake:me@x/b", "unlabeled:fake:work"))   // another account's group
+        c.vm.select("unlabeled:fake:gone")                    // unknown account falls back to everything
+        compare(c.vm.selected, "all")
+    }
+
     function test_railSingleAccountIsFlat() {
         var c = make([entry(keepAcc, { data: personalData() })])
         tryVerify(function () { return c.vm.loaded })
@@ -266,8 +278,8 @@ TestCase {
     function test_railMultiAccountGroupsLabelsUnderAccountHeaders() {
         var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: workData() })])
         tryVerify(function () { return c.vm.notes.length === 3 })
-        compare(railKeys(c.vm), "all,unlabeled,#fake:me@x,label:fake:me@x|L1,+fake:me@x,#fake:work,label:fake:work|L1,+fake:work,archive,trash")
-        compare(c.vm.rail[2].name, "me@x")
+        compare(railKeys(c.vm), "all,#fake:me@x,unlabeled:fake:me@x,label:fake:me@x|L1,+fake:me@x,#fake:work,unlabeled:fake:work,label:fake:work|L1,+fake:work,archive,trash")
+        compare(c.vm.rail[1].name, "me@x")
         // Counts follow the account scope.
         c.vm.selectAccount("fake:work")
         compare(railKeys(c.vm), "all,unlabeled,label:fake:work|L1,+fake:work,archive,trash")
@@ -335,7 +347,7 @@ TestCase {
     function test_accountWithoutLabelsStillOffersToCreateOne() {
         var c = make([entry(keepAcc, { data: personalData() }), entry(workAcc, { data: { notes: [], labels: [] } })])
         tryVerify(function () { return c.vm.loaded })
-        verify(railKeys(c.vm).indexOf("#fake:work,+fake:work") >= 0)
+        verify(railKeys(c.vm).indexOf("#fake:work,unlabeled:fake:work,+fake:work") >= 0)
     }
 
     function test_providerWithoutLabelEditHasNoLabelCommands() {

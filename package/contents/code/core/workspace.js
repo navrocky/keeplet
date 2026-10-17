@@ -54,7 +54,7 @@ function _matches(note, query) {
 function _byOrder(a, b) { return b.order - a.order }
 function _byUpdated(a, b) { return a.updated < b.updated ? 1 : (a.updated > b.updated ? -1 : 0) }
 
-// opts: {accountFilter: "" | accountKey, view: "notes"|"archive"|"trash", labelKey: "", unlabeled: bool,
+// opts: {accountFilter: "" | accountKey, view: "notes"|"archive"|"trash", labelKey: "", unlabeled: bool, unlabeledAccount: accountKey,
 //        query: "", accountCount: n}
 // Order: pinned first; within an account provider's own order, across accounts most recently updated first.
 function visibleNotes(all, opts) {
@@ -72,6 +72,8 @@ function visibleNotes(all, opts) {
         if (opts.labelKey && !n.labels.some(function (l) { return l.key === opts.labelKey }))
             return false
         if (opts.unlabeled && n.labels.length > 0)
+            return false
+        if (opts.unlabeledAccount && (n.accountKey !== opts.unlabeledAccount || n.labels.length > 0))
             return false
         return !query || _matches(n, query)
     })

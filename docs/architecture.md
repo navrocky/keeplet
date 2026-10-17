@@ -28,7 +28,8 @@ Google's Terms of Service.
 - Navigation state (selected group, account filter, open note, collapsed rail) lives in `NotesViewModel`;
   `NotesRoot` only follows `currentNoteKey` with a `StackView` and animated transitions.
 - The rail is built in the ViewModel (`rail`, `accountTabs`): groups are "All notes" (always first),
-  "No label" (notes without labels), labels (under per-account headers when several accounts are shown),
+  "No label" (notes without labels; with several accounts shown each account has its own under its header),
+  labels (under per-account headers when several accounts are shown),
   Archive, Trash. With one account the rail is flat and the account switcher is not shown.
   Accounts whose provider has `labelEdit` also get a "New label" row (an account without labels still gets its
   header); a label's context menu (right click / long press) renames or deletes it, and the note editor's label
