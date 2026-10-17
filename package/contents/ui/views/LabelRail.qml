@@ -25,6 +25,11 @@ Item {
     clip: true
 
     readonly property real rowContentHeight: Math.max(rowMetrics.implicitHeight, Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.smallSpacing * 2)
+    // Captions and counts fade while the rail narrows instead of vanishing at once.
+    property real textOpacity: collapsed ? 0 : 1
+    Behavior on textOpacity {
+        NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
+    }
     QQC2.Label { id: rowMetrics; text: "Ag"; visible: false }
 
     // Names of built-in groups are user-facing text, derived from the item kind.
@@ -244,16 +249,17 @@ Item {
 
                     QQC2.Label {
                         Layout.fillWidth: true
-                        visible: !rail.collapsed
+                        visible: rail.textOpacity > 0
                         text: rail.groupName(row.modelData)
                         elide: Text.ElideRight
                         font.bold: row.isHeader
-                        opacity: row.isHeader ? 0.7 : 1
+                        opacity: (row.isHeader ? 0.7 : 1) * rail.textOpacity
                     }
 
                     // New label of the account the header stands for.
                     QQC2.ToolButton {
-                        visible: !rail.collapsed && row.isHeader && !!row.modelData.canAddLabel
+                        visible: rail.textOpacity > 0 && row.isHeader && !!row.modelData.canAddLabel
+                        opacity: rail.textOpacity
                         icon.name: "list-add"
                         Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.smallSpacing * 2
                         Layout.preferredWidth: Layout.preferredHeight
@@ -264,9 +270,9 @@ Item {
                     }
 
                     QQC2.Label {
-                        visible: !rail.collapsed && !row.isHeader && !row.isAdd
+                        visible: rail.textOpacity > 0 && !row.isHeader && !row.isAdd
                         text: row.isHeader || row.isAdd ? "" : row.modelData.count
-                        opacity: 0.6
+                        opacity: 0.6 * rail.textOpacity
                     }
                 }
             }
