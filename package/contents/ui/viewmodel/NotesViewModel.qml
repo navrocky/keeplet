@@ -193,10 +193,16 @@ QtObject {
         }
         currentNoteKey = noteKey
     }
+    // The list wants to show the note the user has just left (created, edited or only viewed).
+    signal noteClosed(string noteKey)
+
     function closeNote() {
+        var left = currentNoteKey === draftKey ? _draftTarget : currentNoteKey
         currentNoteKey = ""
         draft = null
         _draftTarget = ""
+        if (left)
+            noteClosed(left)
     }
 
     // Accounts a note can be created in: [{key, name, icon}].

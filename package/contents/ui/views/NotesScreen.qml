@@ -161,6 +161,22 @@ Item {
         onTriggered: view.autoScrollStep()
     }
 
+    // Back from a note: the list scrolls to it, wherever it landed (a new note, or one moved by the edit).
+    Connections {
+        target: view.vm
+        function onNoteClosed(noteKey) {
+            Qt.callLater(function () {
+                var notes = view.vm.notes
+                for (var i = 0; i < notes.length; i++) {
+                    if (notes[i].key === noteKey) {
+                        list.positionViewAtIndex(i, ListView.Contain)
+                        return
+                    }
+                }
+            })
+        }
+    }
+
     // A drag must not outlive the situation it started in.
     Connections {
         target: view.vm

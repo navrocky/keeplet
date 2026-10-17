@@ -879,6 +879,19 @@ TestCase {
         verify(two.vm.reorderEnabled)
     }
 
+    function test_closingANoteAnnouncesIt() {
+        var c = make([entry(keepAcc, { data: orderedData([40, 30]) })])
+        tryVerify(function () { return c.vm.notes.length > 2 })
+        var seen = []
+        c.vm.noteClosed.connect(function (k) { seen.push(k) })
+        c.vm.openNote(c.vm.notes[1].key)
+        c.vm.closeNote()
+        compare(seen.length, 1)
+        compare(seen[0], c.vm.notes[1].key)
+        c.vm.closeNote()
+        compare(seen.length, 1)                        // nothing was open
+    }
+
     function test_moveBoundsKeepPinnedAndOthersApart() {
         var c = make([entry(keepAcc, { data: orderedData([40, 30]) })])
         tryVerify(function () { return c.vm.notes.length > 2 })
