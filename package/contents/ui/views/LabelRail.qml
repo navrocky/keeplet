@@ -145,8 +145,8 @@ Item {
                 readonly property bool editable: modelData.kind === "label" && rail.vm.canEditLabels(modelData.accountKey)
 
                 width: rail.dragNoteKey === "" ? groups.width : groups.width * 0.94
-                // Headers are not selectable.
-                enabled: !isHeader
+                // Headers are not selectable (they stay enabled: their "new label" button lives inside).
+                hoverEnabled: !isHeader
                 // While a note is carried only the drop states are drawn: a selected row would add a second frame.
                 highlighted: !isHeader && !isAdd && rail.vm.selected === modelData.key && rail.dragNoteKey === ""
                 topPadding: isHeader ? Kirigami.Units.largeSpacing : Kirigami.Units.smallSpacing
@@ -171,7 +171,12 @@ Item {
                     NumberAnimation { duration: Kirigami.Units.shortDuration }
                 }
 
-                onClicked: isAdd ? rail._askName("create", modelData) : rail.vm.select(modelData.key)
+                onClicked: {
+                    if (isAdd)
+                        rail._askName("create", modelData)
+                    else if (!isHeader)
+                        rail.vm.select(modelData.key)
+                }
                 QQC2.ToolTip.text: rail.groupName(modelData) + (isHeader || isAdd ? "" : " (" + modelData.count + ")")
                 QQC2.ToolTip.visible: hovered && rail.collapsed
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
@@ -237,6 +242,18 @@ Item {
                         elide: Text.ElideRight
                         font.bold: row.isHeader
                         opacity: row.isHeader ? 0.7 : 1
+                    }
+
+                    // New label of the account the header stands for.
+                    QQC2.ToolButton {
+                        visible: !rail.collapsed && row.isHeader && !!row.modelData.canAddLabel
+                        icon.name: "list-add"
+                        Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.smallSpacing * 2
+                        Layout.preferredWidth: Layout.preferredHeight
+                        onClicked: rail._askName("create", row.modelData)
+                        QQC2.ToolTip.text: i18n("New label\u2026")
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     }
 
                     QQC2.Label {

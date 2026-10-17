@@ -806,14 +806,12 @@ QtObject {
                     if (own.length === 0 && !editable && !labeled)
                         return
                     items.push({ type: "header", accountKey: a.account.key, name: a.account.displayName,
-                                 icon: a.provider.icon })
+                                 icon: a.provider.icon, canAddLabel: editable })
                     if (a.provider.capabilities.labels !== "none")
                         items.push({ type: "group", key: "unlabeled:" + a.account.key, kind: "unlabeled",
                                      icon: "tag-delete", accountKey: a.account.key, droppable: true,
                                      count: _count({ unlabeledAccount: a.account.key }) })
                     own.forEach(function (l) { items.push(labelItem(l)) })
-                    if (editable)
-                        items.push({ type: "addLabel", accountKey: a.account.key })
                 })
             } else {
                 inScope.slice().sort(byName).forEach(function (l) { items.push(labelItem(l)) })

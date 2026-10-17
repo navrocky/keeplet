@@ -31,8 +31,8 @@ Google's Terms of Service.
   "No label" (notes without labels; with several accounts shown each account has its own under its header),
   labels (under per-account headers when several accounts are shown),
   Archive, Trash. With one account the rail is flat and the account switcher is not shown.
-  Accounts whose provider has `labelEdit` also get a "New label" row (an account without labels still gets its
-  header); a label's context menu (right click / long press) renames or deletes it, and the note editor's label
+  Accounts whose provider has `labelEdit` also get a "New label" button (`+`, no caption) in their header when accounts are
+  grouped, or a "New label" row when the rail is flat (an account without labels still gets its header); a label's context menu (right click / long press) renames or deletes it, and the note editor's label
   picker has "New label…". The ViewModel validates names (`labelNameError`), the View only shows the dialogs.
 No native code: stage 0 showed that both `/auth` and `/changes` work from QML XHR
 ([decisions/0001-auth-helper.md](decisions/0001-auth-helper.md)).
