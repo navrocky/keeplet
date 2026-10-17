@@ -13,7 +13,8 @@ Can the widget show Google's sign-in itself and take the one-time `oauth_token` 
 - **Works:** attach a DevTools view (`view.devToolsView = dev`) and call `InspectorFrontendHost.sendMessageToBackend`
   with `Network.getAllCookies`; the reply lists HttpOnly cookies (`oauth_token`, `user_id`, …). The DevTools view can be
   1x1 and transparent. DevTools logs an unexpected reply, cookie values included, so the hook must swallow it.
-- `exchange_token` accepts an **empty `Email`**; the page also shows the address (fallback).
+- `exchange_token` accepts an **empty `Email`** and the answer carries the account's `Email` (verified in the widget);
+  the page also shows the address (fallback).
 
 ## Decision
 - `services/BrowserSignIn.qml` + `BrowserSignInWindow.qml`: a window with an off-the-record profile, destroyed after use.
