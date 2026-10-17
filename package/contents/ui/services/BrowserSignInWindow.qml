@@ -8,7 +8,7 @@ import QtWebEngine
 //
 // The cookie is HttpOnly, so neither document.cookie nor the QML API can read it. The attached DevTools view
 // (kept 1x1 and transparent) speaks the DevTools protocol through InspectorFrontendHost, and
-// Network.getAllCookies returns HttpOnly cookies too. Verified in spike/webauth.qml; see
+// Network.getAllCookies returns HttpOnly cookies too. Verified by a spike (see git history); see
 // docs/decisions/0003-browser-signin.md.
 Window {
     id: win
