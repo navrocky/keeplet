@@ -54,6 +54,7 @@ Item {
 
     function _askDelete(item) {
         rail._target = { kind: "delete", accountKey: item.accountKey, labelKey: item.key.substring("label:".length), name: item.name }
+        deleteDialog.message = i18n("Delete the label \u201c%1\u201d? The notes stay, they just lose this label.", item.name)
         deleteDialog.open()
     }
 
@@ -67,18 +68,26 @@ Item {
         }
     }
 
-    Kirigami.PromptDialog {
+    // Confirmation: the same card without the input.
+    LabelNameDialog {
         id: deleteDialog
+        showInput: false
         title: i18n("Delete label")
-        subtitle: rail._target ? i18n("Delete the label \u201c%1\u201d? The notes stay, they just lose this label.", rail._target.name) : ""
-        standardButtons: Kirigami.Dialog.Ok | Kirigami.Dialog.Cancel
-        onAccepted: rail.vm.deleteLabel(rail._target.labelKey)
+        okText: i18n("Delete")
+        onSubmitted: rail.vm.deleteLabel(rail._target.labelKey)
     }
 
     PlasmaExtras.Menu {
         id: labelMenu
         property var item: null
 
+        // Where the label comes from: a label belongs to one account.
+        PlasmaExtras.MenuItem {
+            enabled: false
+            icon: labelMenu.item ? labelMenu.item.providerIcon : ""
+            text: labelMenu.item ? i18n("%1 (%2)", labelMenu.item.accountName, labelMenu.item.providerName) : ""
+        }
+        PlasmaExtras.MenuItem { separator: true }
         PlasmaExtras.MenuItem {
             text: i18n("Rename\u2026")
             icon: "edit-rename"
@@ -124,6 +133,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             model: rail.vm.rail
+            spacing: Kirigami.Units.smallSpacing
             clip: true
             boundsBehavior: Flickable.StopAtBounds
 

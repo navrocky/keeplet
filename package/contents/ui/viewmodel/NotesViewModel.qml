@@ -717,8 +717,11 @@ QtObject {
             var inScope = labels.filter(function (l) { return !accountFilter || l.accountKey === accountFilter })
             var byName = function (a, b) { return a.name.localeCompare(b.name) }
             function labelItem(l) {
+                var acc = _accs[l.accountKey]
                 return { type: "group", key: "label:" + l.key, kind: "label", name: l.name, icon: "tag",
-                         accountKey: l.accountKey, count: _count({ labelKey: l.key }), droppable: true }
+                         accountKey: l.accountKey, count: _count({ labelKey: l.key }), droppable: true,
+                         accountName: acc ? acc.account.displayName : "", providerName: acc ? acc.provider.name : "",
+                         providerIcon: acc ? acc.provider.icon : "" }
             }
             if (multi && !accountFilter) {
                 scope.forEach(function (a) {

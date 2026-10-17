@@ -55,7 +55,8 @@ Item {
             return find(rail(), function (i) { return i.modelData !== undefined && i.modelData && pred(i.modelData) })
         }
         function dialog(title) {
-            return find(root, function (i) { return i.hasOwnProperty("initialName") && i.title === title })
+            // The dialogs are items of the window overlay, not children of the screen.
+            return find(win.Window.window.contentItem, function (i) { return i.hasOwnProperty("initialName") && i.title === title })
         }
 
         function init() {
@@ -70,6 +71,7 @@ Item {
             var d = dialog("New label")
             verify(d, "name dialog")
             tryVerify(function () { return d.visible })
+            verify(d.width > 100 && d.height > 100, "the card covers the widget")
             tryCompare(d, "error", "empty")
             d.check = function (n) { return notes.labelNameError("fake:me", n) }
             d.submitted("Ideas")   // what accepting the dialog emits
