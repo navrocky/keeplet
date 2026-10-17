@@ -57,7 +57,7 @@ Item {
                         pointer.x, pointer.y, origin.x, origin.y, card.width, card.height, card.color)
         placeholderLive = false
         updateInsertion()      // the placeholder is there at once, in the carried card's own place
-        placeholderLive = true
+        liveTimer.restart()    // and glides only after it has been placed (the slot's binding lands a moment later)
     }
     function moveDrag(scenePosition) {
         var p = view.mapFromItem(null, scenePosition.x, scenePosition.y)
@@ -70,6 +70,8 @@ Item {
         var action = dragLayer.drop()          // a group in the rail may take the note
         insertIndex = -1
         carriedIndex = -1
+        placeholderLive = false
+        liveTimer.stop()
         // Not taken by a group: if it was held over the list, put it there (manual order).
         // The cards are already where the drag put them: the reorder must not animate them a second time.
         reordering = true
@@ -84,6 +86,7 @@ Item {
     property int carriedIndex: -1     // list index of the carried note
     property int insertIndex: -1      // where it would go, as an index of the list without it (-1: not over the list)
     property real placeholderY: 0     // content y of the placeholder (set by the slot it lands on, see the delegate)
+    Timer { id: liveTimer; interval: 60; onTriggered: view.placeholderLive = true }
     property bool reordering: false
     Timer { id: settle; interval: 150; onTriggered: view.reordering = false }
     property bool placeholderLive: false   // the placeholder glides (not at the start, where it just appears)
@@ -180,6 +183,8 @@ Item {
         function onCancelled() {
             view.insertIndex = -1
             view.carriedIndex = -1
+            view.placeholderLive = false
+            liveTimer.stop()
         }
     }
 
