@@ -54,6 +54,9 @@ Item {
         dragHeight = card.height
         dragLayer.begin(note.key, note.title !== "" ? note.title : i18n("Untitled note"),
                         pointer.x, pointer.y, origin.x, origin.y, card.width, card.height, card.color)
+        placeholderLive = false
+        updateInsertion()      // the placeholder is there at once, in the carried card's own place
+        placeholderLive = true
     }
     function moveDrag(scenePosition) {
         var p = view.mapFromItem(null, scenePosition.x, scenePosition.y)
@@ -64,33 +67,41 @@ Item {
         var key = dragLayer.noteKey
         var index = insertIndex
         var action = dragLayer.drop()          // a group in the rail may take the note
-        insertBefore = -1
         insertIndex = -1
+        carriedIndex = -1
         // Not taken by a group: if it was held over the list, put it there (manual order).
+        // The cards are already where the drag put them: the reorder must not animate them a second time.
+        reordering = true
+        settle.restart()
         if (action === Qt.IgnoreAction && index >= 0 && key !== "")
             view.vm.moveNote(key, index)
     }
 
     // --- manual order: where the carried note would be inserted
-    property int insertBefore: -1     // full list index in front of which the gap opens (count = at the end)
-    property int insertIndex: -1      // the same place as an index of the list without the carried note
-    property real dragHeight: 0       // height of the carried card = size of the gap
+    // Slots never change their height: the cards between the old and the new place slide by the size of the
+    // carried card and a placeholder of that size marks the place.
+    property int carriedIndex: -1     // list index of the carried note
+    property int insertIndex: -1      // where it would go, as an index of the list without it (-1: not over the list)
+    property real placeholderY: 0     // content y of the placeholder
+    property bool reordering: false
+    Timer { id: settle; interval: 150; onTriggered: view.reordering = false }
+    property bool placeholderLive: false   // the placeholder glides (not at the start, where it just appears)
+    property real dragHeight: 0       // height of the carried card = size of the placeholder
 
     function updateInsertion() {
-        var before = -1
         var index = -1
+        var carried = -1
         if (dragLayer.active && view.vm.reorderEnabled) {
             var p = list.mapFromItem(dragLayer, dragLayer.pointer.x, dragLayer.pointer.y)
             var inside = p.x >= 0 && p.x <= list.width && p.y >= -scrollZone && p.y <= list.height + scrollZone
             if (inside) {
                 var c = list.contentItem.mapFromItem(dragLayer, dragLayer.pointer.x, dragLayer.pointer.y)
                 var notes = view.vm.notes
-                var carried = -1
                 for (var i = 0; i < notes.length; i++) {
                     if (notes[i].key === dragLayer.noteKey)
                         carried = i
                 }
-                // First card whose natural centre is below the pointer: insert in front of it.
+                // First card whose natural centre (slots do not move) is below the pointer: insert in front of it.
                 var found = -1
                 var lastSeen = -1
                 for (var j = 0; j < list.count; j++) {
@@ -98,7 +109,7 @@ Item {
                     if (!slot || j === carried)
                         continue
                     lastSeen = j
-                    if (c.y < slot.y + slot.gap + slot.cardItem.height / 2) {
+                    if (c.y < slot.y + slot.height / 2) {
                         found = j
                         break
                     }
@@ -107,14 +118,18 @@ Item {
                     found = lastSeen + 1
                 if (found >= 0) {
                     index = carried >= 0 && found > carried ? found - 1 : found
-                    if (view.vm.canMoveTo(dragLayer.noteKey, index))
-                        before = found
-                    else
+                    if (!view.vm.canMoveTo(dragLayer.noteKey, index))
                         index = -1
                 }
             }
         }
-        insertBefore = before
+        if (index >= 0 && carried >= 0) {
+            // Natural place of the placeholder: the slot it takes over (the one now at `index` of the full list).
+            var ref = list.itemAtIndex(index)
+            if (ref)
+                placeholderY = index <= carried ? ref.y : ref.y + ref.height - dragHeight
+        }
+        carriedIndex = carried
         insertIndex = index
     }
 
@@ -168,8 +183,8 @@ Item {
     Connections {
         target: dragLayer
         function onCancelled() {
-            view.insertBefore = -1
             view.insertIndex = -1
+            view.carriedIndex = -1
         }
     }
 
@@ -500,52 +515,46 @@ Item {
 
                         // Cards slide to their new places when notes appear, vanish or the order changes.
                         displaced: Transition {
+                            enabled: !view.reordering
                             NumberAnimation { properties: "y"; duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
                         }
                         remove: Transition {
                             NumberAnimation { property: "opacity"; to: 0; duration: Kirigami.Units.shortDuration }
                         }
 
-                        // A slot (whose height may change) around the card: the card keeps its size and its pointer
-                        // handlers while the slot collapses during a drag.
+                        // A slot around the card (its height never changes); during a drag the card slides inside it.
                         delegate: Item {
                             id: slot
                             required property int index
                             required property var modelData
                             readonly property bool dragged: dragLayer.active && dragLayer.noteKey === modelData.key
                             readonly property alias cardItem: card
-                            // Room opened in front of this card for the carried note (manual order).
-                            property real gap: !dragged && view.insertBefore === index ? view.dragHeight : 0
-                            Behavior on gap {
-                                NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
+                            // The card slides out of the way of the carried one (see insertIndex).
+                            readonly property real shift: {
+                                var t = view.insertIndex, c = view.carriedIndex
+                                if (t < 0 || c < 0 || dragged)
+                                    return 0
+                                var d = view.dragHeight + list.spacing
+                                if (t < c && index >= t && index < c)
+                                    return d
+                                if (t > c && index > c && index <= t)
+                                    return -d
+                                return 0
                             }
 
                             width: list.width
-                            // While its card is carried the slot closes and the other cards slide together;
-                            // when the card comes back (or is dropped elsewhere) the slot opens again.
-                            height: dragged ? 0 : gap + card.implicitHeight
-                            Behavior on height {
-                                NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
-                            }
-
-                            // Marks where the carried note would land.
-                            Rectangle {
-                                visible: slot.gap > 2
-                                x: 0
-                                y: 0
-                                width: slot.width
-                                height: Math.max(0, slot.gap - Kirigami.Units.smallSpacing)
-                                radius: Kirigami.Units.smallSpacing * 2
-                                color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
-                                border.width: 2
-                                border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
-                            }
+                            height: card.implicitHeight
 
                             NoteCard {
                                 id: card
-                                y: slot.gap
+                                y: slot.shift
+                                Behavior on y {
+                                    enabled: dragLayer.active
+                                    NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+                                }
                                 width: slot.width
-                                opacity: slot.dragged ? 0 : 1
+                                // Carried: the placeholder stands in; without one (nowhere to drop) it stays dimmed.
+                                opacity: slot.dragged ? (view.insertIndex >= 0 ? 0 : 0.35) : 1
                                 // Pressed in place: the card sinks a little, a hint that holding picks it up.
                                 scale: hold.pressedKey === slot.modelData.key ? 0.97 : 1
                                 Behavior on scale {
@@ -560,23 +569,21 @@ Item {
                             }
                         }
 
-                        // The same room at the very end of the list.
-                        footer: Item {
+                        // Marks where the carried note would land.
+                        Rectangle {
+                            visible: view.insertIndex >= 0
+                            x: 0
+                            y: view.placeholderY
+                            Behavior on y {
+                                enabled: view.placeholderLive
+                                NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
+                            }
                             width: list.width
-                            height: view.insertBefore === list.count && view.insertBefore >= 0 ? view.dragHeight : 0
-                            Behavior on height {
-                                NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
-                            }
-
-                            Rectangle {
-                                visible: parent.height > 2
-                                width: parent.width
-                                height: Math.max(0, parent.height - Kirigami.Units.smallSpacing)
-                                radius: Kirigami.Units.smallSpacing * 2
-                                color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
-                                border.width: 2
-                                border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
-                            }
+                            height: view.dragHeight
+                            radius: Kirigami.Units.smallSpacing * 2
+                            color: Qt.alpha(Kirigami.Theme.highlightColor, 0.12)
+                            border.width: 2
+                            border.color: Qt.alpha(Kirigami.Theme.highlightColor, 0.6)
                         }
 
                         PlasmaComponents.Label {
