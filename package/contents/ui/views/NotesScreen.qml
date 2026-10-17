@@ -173,6 +173,41 @@ Item {
         }
     }
 
+    // "Undo" notice for the last trash/archive/label action; hides itself after a while. It floats over the
+    // bottom of the list, so showing or hiding it never moves the notes; it fades and slides in and out.
+    property string noticeText: ""
+    Connections {
+        target: view.vm
+        function onLastActionChanged() {
+            // Keep the text while the notice fades out.
+            if (view.vm.lastAction !== null)
+                view.noticeText = view.actionText(view.vm.lastAction)
+        }
+    }
+    Kirigami.InlineMessage {
+        id: undoNotice
+        z: 50
+        anchors {
+            left: parent.left; right: parent.right; bottom: parent.bottom
+            margins: view.gap
+        }
+        type: Kirigami.MessageType.Information
+        showCloseButton: false
+        visible: view.vm.lastAction !== null
+        opacity: visible ? 1 : 0
+        Behavior on opacity {
+            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.InOutQuad }
+        }
+        text: view.noticeText
+        actions: [
+            Kirigami.Action {
+                text: i18n("Undo")
+                icon.name: "edit-undo"
+                onTriggered: view.vm.undoLast()
+            }
+        ]
+    }
+
     ColumnLayout {
         id: content
         anchors.fill: parent
@@ -277,22 +312,6 @@ Item {
                     onTriggered: view.openSettings()
                 }
             }
-        }
-
-        // "Undo" notice for the last trash/archive/label action; hides itself after a while.
-        Kirigami.InlineMessage {
-            id: undoNotice
-            Layout.fillWidth: true
-            type: Kirigami.MessageType.Information
-            visible: view.vm.lastAction !== null
-            text: view.actionText(view.vm.lastAction)
-            actions: [
-                Kirigami.Action {
-                    text: i18n("Undo")
-                    icon.name: "edit-undo"
-                    onTriggered: view.vm.undoLast()
-                }
-            ]
         }
 
         Timer {

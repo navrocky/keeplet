@@ -147,7 +147,8 @@ Item {
                 width: groups.width
                 // Headers are not selectable.
                 enabled: !isHeader
-                highlighted: !isHeader && !isAdd && rail.vm.selected === modelData.key
+                // While a note is carried only the drop states are drawn: a selected row would add a second frame.
+                highlighted: !isHeader && !isAdd && rail.vm.selected === modelData.key && rail.dragNoteKey === ""
                 topPadding: isHeader ? Kirigami.Units.largeSpacing : Kirigami.Units.smallSpacing
                 bottomPadding: Kirigami.Units.smallSpacing
                 leftPadding: Kirigami.Units.smallSpacing * 2
@@ -159,12 +160,8 @@ Item {
                 readonly property bool takesDrag: rail.dragNoteKey !== "" && !isHeader && !!modelData.droppable
                                                   && rail.vm.canDrop(rail.dragNoteKey, modelData.key)
 
-                transformOrigin: Item.Left
-                scale: dropHover ? 1.1 : (takesDrag ? 1.03 : 1)
+                // No scaling: a grown row would be cut off at the edge of the rail.
                 opacity: rail.dragNoteKey === "" || isHeader || isAdd || takesDrag ? 1 : 0.45
-                Behavior on scale {
-                    NumberAnimation { duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
-                }
                 Behavior on opacity {
                     NumberAnimation { duration: Kirigami.Units.shortDuration }
                 }
@@ -204,13 +201,18 @@ Item {
                     }
                 }
 
+                // A group that can take the carried note is tinted; the one under the pointer gets one frame.
                 Rectangle {
                     anchors.fill: parent
-                    visible: row.dropHover
-                    color: Qt.alpha(Kirigami.Theme.highlightColor, 0.2)
-                    border.width: 2
+                    opacity: row.dropHover ? 1 : (row.takesDrag ? 0.6 : 0)
+                    visible: opacity > 0
+                    color: Qt.alpha(Kirigami.Theme.highlightColor, row.dropHover ? 0.25 : 0.12)
+                    border.width: row.dropHover ? 2 : 0
                     border.color: Kirigami.Theme.highlightColor
                     radius: Kirigami.Units.smallSpacing
+                    Behavior on opacity {
+                        NumberAnimation { duration: Kirigami.Units.shortDuration }
+                    }
                 }
 
                 contentItem: RowLayout {

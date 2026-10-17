@@ -227,22 +227,22 @@ Item {
             putDown(x, top.y + 2)
         }
 
-        function test_groupsGrowAndOthersDimWhileCarrying() {
+        function test_groupsAreMarkedAndOthersDimWhileCarrying() {
             var a = pickUp("n3")        // a note without labels, so every label group can take it
             var home = group("label:fake:me|L2"), all = group("all")
-            verify(home.scale <= 1.001 && all.opacity > 0.99, "nothing changed before carrying over groups")
-            tryVerify(function () { return home.scale > 1.01 }, 2000, "groups that can take the note grow")
+            verify(!home.dropHover && all.opacity > 0.99, "nothing dims before the groups are reached")
+            tryVerify(function () { return home.takesDrag }, 2000, "groups that can take the note are marked")
             tryVerify(function () { return all.opacity < 0.7 }, 2000, "groups that refuse dim")
 
             var b = center(home)
             mouseMove(win, b.x, b.y, 0, Qt.LeftButton)
             mouseMove(win, b.x + 1, b.y, 0, Qt.LeftButton)
-            tryVerify(function () { return home.scale > 1.07 }, 2000, "the hovered group grows more")
+            tryVerify(function () { return home.dropHover }, 2000, "the hovered group gets the drop frame")
             putDown(5, 5)                                                    // not a drop on the group
             // The rail is rebuilt after a drop, so look the rows up again.
             tryVerify(function () {
                 var h = group("label:fake:me|L2"), al = group("all")
-                return h && al && h.scale < 1.001 && al.opacity > 0.99
+                return h && al && !h.takesDrag && !h.dropHover && al.opacity > 0.99
             }, 2000, "back to normal")
         }
 

@@ -17,12 +17,20 @@ KCM.SimpleKCM {
         service: accountsService
     }
 
-    AccountsSettings {
-        width: parent ? parent.width : implicitWidth
-        accounts: accountsVm
-        onAccountsModified: {
-            localDb.drain()   // the widgets read the database as soon as they hear about the change
-            Plasmoid.configuration.accountsRevision = Plasmoid.configuration.accountsRevision + 1
+    // A centered column of a readable width, like the "About" page, instead of stretching over the dialog.
+    Item {
+        implicitHeight: settings.implicitHeight + Kirigami.Units.largeSpacing * 2
+
+        AccountsSettings {
+            id: settings
+            y: Kirigami.Units.largeSpacing
+            width: Math.min(parent.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 30)
+            anchors.horizontalCenter: parent.horizontalCenter
+            accounts: accountsVm
+            onAccountsModified: {
+                localDb.drain()   // the widgets read the database as soon as they hear about the change
+                Plasmoid.configuration.accountsRevision = Plasmoid.configuration.accountsRevision + 1
+            }
         }
     }
 }
