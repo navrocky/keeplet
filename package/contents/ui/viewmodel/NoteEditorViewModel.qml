@@ -72,6 +72,9 @@ QtObject {
     readonly property bool labelsSingle: note !== null && !!notes.capabilities(note.accountKey)
                                          && notes.capabilities(note.accountKey).labels === "single"
 
+    // Whether the account of the note lets the user create labels (the picker offers "New label").
+    readonly property bool canCreateLabel: note !== null && notes.canEditLabels(note.accountKey)
+
     // A new note that has not been stored yet may still be moved to another account.
     readonly property bool isNewUnsaved: note !== null && note.id === ""
     readonly property var accountChoices: isNewUnsaved ? notes.writableAccounts() : []
@@ -108,6 +111,29 @@ QtObject {
                 n.labels = labelsSingle ? [added] : n.labels.concat([added])
             }
         })
+    }
+
+    // Why `name` cannot be a new label of the note's account: "" | "empty" | "exists".
+    function labelNameError(name) {
+        return note === null ? "empty" : notes.labelNameError(note.accountKey, name)
+    }
+
+    // Creates a label in the note's account and puts the note into it (one undo step for the assignment;
+    // the label itself stays). Returns "" or the reason it failed ("empty", "exists", "unsupported").
+    function createLabel(name) {
+        if (note === null || !canCreateLabel)
+            return "unsupported"
+        var err = notes.labelNameError(note.accountKey, name)
+        if (err !== "")
+            return err
+        var made = notes.createLabel(note.accountKey, name)
+        if (!made)
+            return "unsupported"
+        _change("", function (n) {
+            var added = { id: made.id, name: made.name }
+            n.labels = labelsSingle ? [added] : n.labels.concat([added])
+        })
+        return ""
     }
 
     // Moves a new, not yet stored note to another account; labels belong to an account, so they are dropped.

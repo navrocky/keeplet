@@ -26,6 +26,7 @@ Item {
         function canWrite() { return true }
         function capabilities() { return { colors: [], nestedItems: true, convertType: true, labels: "none" } }
         function labelsOf() { return [] }
+        function canEditLabels() { return false }
         function writableAccounts() { return [] }
         function closeNote() { currentNoteKey = "" }
         function removeNote() { return true }

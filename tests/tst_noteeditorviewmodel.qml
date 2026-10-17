@@ -29,6 +29,23 @@ TestCase {
             function labelsOf(accountKey) {
                 return accountLabels.filter(function (l) { return l.accountKey === accountKey })
             }
+            property bool labelsEditable: true
+            property int labelCounter: 0
+            function canEditLabels(accountKey) { return labelsEditable }
+            function labelNameError(accountKey, name) {
+                var n = String(name).trim().toLowerCase()
+                if (n === "")
+                    return "empty"
+                return labelsOf(accountKey).some(function (l) { return l.name.toLowerCase() === n }) ? "exists" : ""
+            }
+            function createLabel(accountKey, name) {
+                if (labelNameError(accountKey, name) !== "")
+                    return null
+                labelCounter++
+                var l = { id: "N" + labelCounter, name: String(name).trim(), accountKey: accountKey }
+                accountLabels = accountLabels.concat([l])
+                return { id: l.id, name: l.name, key: accountKey + "|" + l.id }
+            }
             function writableAccounts() {
                 return [{ key: "acc", name: "me" }, { key: "acc2", name: "work" }]
             }
@@ -501,5 +518,39 @@ TestCase {
         c.editor.undo()                                         // the removed item is back with its own uid
         compare(c.editor.itemUids[0], uids[0])
         compare(c.editor.itemIndexOf(uids[3]), 4)
+    }
+
+    // --- creating a label from the editor
+
+    function test_createLabelAssignsItAsOneUndoStep() {
+        var c = open(noteData({ labels: [{ id: "L1", name: "Work" }] }))
+        verify(c.editor.canCreateLabel)
+        compare(c.editor.createLabel("  Ideas "), "")
+        compare(c.editor.note.labels.map(function (l) { return l.name }).join(), "Work,Ideas")
+        compare(c.notes.accountLabels.length, 3)
+        c.editor.undo()
+        compare(c.editor.note.labels.map(function (l) { return l.name }).join(), "Work")
+        compare(c.notes.accountLabels.length, 3)   // the label itself stays
+    }
+
+    function test_createLabelRejectsBadNamesAndUnsupportedAccounts() {
+        var c = open(noteData())
+        compare(c.editor.createLabel(" "), "empty")
+        compare(c.editor.createLabel("work"), "exists")
+        compare(c.editor.labelNameError("Fresh"), "")
+        compare(c.editor.note.labels.length, 0)
+        c.notes.labelsEditable = false
+        verify(!c.editor.canCreateLabel)
+        compare(c.editor.createLabel("Fresh"), "unsupported")
+    }
+
+    function test_createLabelInSingleModeReplacesTheLabel() {
+        var notes = notesComp.createObject(tc, { labelMode: "single" })
+        var data = noteData({ labels: [{ id: "L1", name: "Work" }] })
+        notes.store[data.key] = data
+        var editor = editorComp.createObject(tc, { notes: notes, saveDelay: 20 })
+        notes.currentNoteKey = data.key
+        compare(editor.createLabel("Ideas"), "")
+        compare(editor.note.labels.map(function (l) { return l.name }).join(), "Ideas")
     }
 }
