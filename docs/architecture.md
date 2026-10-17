@@ -30,6 +30,9 @@ Google's Terms of Service.
 - The rail is built in the ViewModel (`rail`, `accountTabs`): groups are "All notes" (always first),
   "No label" (notes without labels), labels (under per-account headers when several accounts are shown),
   Archive, Trash. With one account the rail is flat and the account switcher is not shown.
+  Accounts whose provider has `labelEdit` also get a "New label" row (an account without labels still gets its
+  header); a label's context menu (right click / long press) renames or deletes it, and the note editor's label
+  picker has "New label…". The ViewModel validates names (`labelNameError`), the View only shows the dialogs.
 No native code: stage 0 showed that both `/auth` and `/changes` work from QML XHR
 ([decisions/0001-auth-helper.md](decisions/0001-auth-helper.md)).
 

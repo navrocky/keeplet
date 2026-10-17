@@ -409,4 +409,46 @@ TestCase {
         verify(Nodes.buildNote(s, "missing") === null)
         verify(Nodes.buildNote(s, "l1.a") === null)            // an item is not a note
     }
+
+    // --- labels
+
+    function test_createLabelQueuesARawLabelAndRejectsBadNames() {
+        var s = stateWith()
+        var made = Mut.createLabel(s, "  Ideas ", ctx())
+        compare(made.name, "Ideas")
+        var raw = s.labelsDirty[made.id].label
+        compare(raw.mainId, made.id)
+        compare(raw.name, "Ideas")
+        compare(raw.timestamps.deleted, never)
+        verify(raw.timestamps.created !== never)
+        compare(s.labels[made.id].name, "Ideas")
+        compare(Mut.createLabel(s, "work", ctx()), null)   // L1 is "Work"
+        compare(Mut.createLabel(s, "  ", ctx()), null)
+    }
+
+    function test_renameLabelKeepsServerFieldsAndBumpsTimestamps() {
+        var s = stateWith()
+        verify(Mut.renameLabel(s, "L1", "Job", ctx()))
+        var raw = s.labelsDirty.L1.label
+        compare(raw.name, "Job")
+        compare(raw.timestamps.created, old)
+        verify(raw.timestamps.updated !== old)
+        compare(s.labels.L1.name, "Job")
+        verify(!Mut.renameLabel(s, "L1", "Home", ctx()))   // taken by L2
+        verify(!Mut.renameLabel(s, "nope", "X", ctx()))
+        verify(Mut.renameLabel(s, "L1", "JOB", ctx()))     // only the case changes
+    }
+
+    function test_deleteLabelMarksItDeletedAndHidesIt() {
+        var s = stateWith()
+        verify(Mut.deleteLabel(s, "L2", ctx()))
+        verify(Nodes.isDeleted(s.labelsDirty.L2.label))
+        verify(!("L2" in s.labels))
+        compare(Nodes.buildLabels(s).map(function (l) { return l.id }).join(), "L1")
+        verify(!Mut.deleteLabel(s, "L2", ctx()))
+        // The note keeps its link to a label that no longer exists; it is simply not shown.
+        compare(Nodes.buildNote(s, "n1").labels.length, 1)
+        Mut.deleteLabel(s, "L1", ctx())
+        compare(Nodes.buildNote(s, "n1").labels.length, 0)
+    }
 }

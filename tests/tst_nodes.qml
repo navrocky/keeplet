@@ -194,4 +194,48 @@ TestCase {
         compare(s.version, "v2")
         compare(s.nodes["n1.b"].text, "milk, eggs")   // other nodes are still applied
     }
+
+    // --- labels: userInfo.labels is the complete list; local label edits are queued
+
+    function test_applyChangesTreatsUserInfoLabelsAsTheCompleteList() {
+        var s = Nodes.createState()
+        Nodes.applyChanges(s, sampleResponse())
+        var before = Object.keys(s.labels).length
+        verify(before >= 1)
+        // Only L2 remains: the server sends no tombstones, a deleted label is just absent.
+        Nodes.applyChanges(s, { toVersion: "v2", userInfo: { labels: [{ mainId: "L2", name: "Home", timestamps: ts() }] } })
+        compare(Object.keys(s.labels).join(), "L2")
+        // A response without userInfo leaves the labels alone.
+        Nodes.applyChanges(s, { toVersion: "v3", nodes: [] })
+        compare(Object.keys(s.labels).join(), "L2")
+    }
+
+    function test_skipLabelKeepsTheLocalVersionOfALabelEditedInFlight() {
+        var s = Nodes.createState()
+        s.labels = { L1: { mainId: "L1", name: "Local name", timestamps: ts() } }
+        Nodes.applyChanges(s, { toVersion: "v2", userInfo: { labels: [
+            { mainId: "L1", name: "Server name", timestamps: ts() }, { mainId: "L3", name: "New", timestamps: ts() }] } },
+            { skipLabel: function (id) { return id === "L1" } })
+        compare(s.labels.L1.name, "Local name")
+        compare(s.labels.L3.name, "New")
+    }
+
+    function test_markLabelDirtyQueuesAndCounts() {
+        var s = Nodes.createState()
+        var raw = { mainId: "G1", name: "Ideas", timestamps: ts() }
+        Nodes.markLabelDirty(s, raw)
+        compare(s.labels.G1.name, "Ideas")
+        compare(Nodes.pendingCount(s), 1)
+        // A deleted label leaves the visible labels at once but stays queued.
+        Nodes.markLabelDirty(s, { mainId: "G1", name: "Ideas", timestamps: ts({ deleted: now }) })
+        verify(!("G1" in s.labels))
+        compare(Nodes.pendingCount(s), 1)
+        compare(Nodes.buildLabels(s).length, 0)
+    }
+
+    function test_normalizeStateAddsLabelsDirty() {
+        var old = { version: "v", nodes: {}, labels: {} }
+        Nodes.normalizeState(old)
+        compare(Object.keys(old.labelsDirty).length, 0)
+    }
 }

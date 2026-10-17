@@ -140,4 +140,39 @@ TestCase {
         verify("mine" in s.nodes)
         verify("a" in s.nodes)
     }
+
+    function test_buildRequestSendsDirtyLabelsInUserInfo() {
+        var s = Nodes.createState()
+        verify(KeepApi.buildRequest(s, [], "x").userInfo === undefined)
+        verify(KeepApi.buildRequest(s, [], "x", []).userInfo === undefined)
+        var label = { mainId: "G1", name: "Ideas" }
+        compare(KeepApi.buildRequest(s, [], "x", [label]).userInfo.labels[0].mainId, "G1")
+    }
+
+    function test_syncSendsDirtyLabelsWithTheFirstPageOnly() {
+        var log = []
+        var s = Nodes.createState()
+        var done = false
+        KeepApi.sync("t", s, [], fakeServer([page("v1", true, ["a"]), page("v2", false, ["b"])], log),
+                     { dirtyLabels: [{ mainId: "G1", name: "Ideas" }] }).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(log[0].body.userInfo.labels[0].name, "Ideas")
+        verify(log[1].body.userInfo === undefined)
+    }
+
+    function test_fullResyncResendsPendingLabels() {
+        var s = Nodes.createState()
+        s.version = "old"
+        var raw = { mainId: "G1", name: "Ideas", timestamps: {} }
+        s.labels = { G1: raw }
+        s.labelsDirty = { G1: { label: raw, rev: 1 } }
+        var log = []
+        var done = false
+        KeepApi.sync("t", s, [], fakeServer([{ forceFullResync: true }, page("fresh", false, [])], log),
+                     { dirtyLabels: [raw] }).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(log.length, 2)
+        compare(log[1].body.userInfo.labels[0].mainId, "G1")
+        compare(s.labels.G1.name, "Ideas")   // kept through the resync
+    }
 }

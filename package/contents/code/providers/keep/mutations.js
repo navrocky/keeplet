@@ -1,5 +1,6 @@
 .pragma library
 .import "nodes.js" as Nodes
+.import "../../core/labels.js" as Labels
 
 // Turns an edited note (provider-neutral snapshot, see core/notes.js) into the raw Keep nodes that must be
 // sent. Pure functions over the provider state: no network, no UI. Shapes follow gkeepapi's Node.save() and
@@ -377,4 +378,62 @@ function reorder(state, noteId, order, ctx) {
 
 function remove(state, noteId, ctx) {
     deleteNote(state, noteId, ctx).forEach(function (n) { Nodes.markDirty(state, n) })
+}
+
+// --- Labels. A label is sent in userInfo.labels (verified, docs/keep-protocol.md "Labels"): created with a
+// client-made mainId, renamed by sending it again with the new name, deleted with timestamps.deleted set.
+// Notes keep their link to a deleted label (the server does not strip it); Nodes._labelsOf ignores it.
+
+function _rawLabel(state, id) {
+    return state.labels[id] || null
+}
+
+function _labelList(state) {
+    return Object.keys(state.labels).map(function (id) { return { id: id, name: state.labels[id].name } })
+}
+
+// Returns {id, name} of the new label, or null when the name is empty or taken.
+function createLabel(state, name, ctx) {
+    ctx = ctx || defaultContext()
+    var n = Labels.cleanName(name)
+    if (!Labels.nameAvailable(_labelList(state), n))
+        return null
+    var now = ctx.now()
+    var raw = {
+        mainId: ctx.newId(), name: n, lastMerged: now,
+        timestamps: { kind: "notes#timestamps", created: now, updated: now, trashed: NEVER, deleted: NEVER, userEdited: now }
+    }
+    Nodes.markLabelDirty(state, raw)
+    return { id: raw.mainId, name: n }
+}
+
+function renameLabel(state, id, name, ctx) {
+    ctx = ctx || defaultContext()
+    var raw = _rawLabel(state, id)
+    var n = Labels.cleanName(name)
+    if (!raw || !Labels.nameAvailable(_labelList(state), n, id))
+        return false
+    var copy = _clone(raw)
+    var now = ctx.now()
+    copy.name = n
+    copy.timestamps = copy.timestamps || {}
+    copy.timestamps.updated = now
+    copy.lastMerged = now
+    Nodes.markLabelDirty(state, copy)
+    return true
+}
+
+function deleteLabel(state, id, ctx) {
+    ctx = ctx || defaultContext()
+    var raw = _rawLabel(state, id)
+    if (!raw)
+        return false
+    var copy = _clone(raw)
+    var now = ctx.now()
+    copy.timestamps = copy.timestamps || {}
+    copy.timestamps.deleted = now
+    copy.timestamps.updated = now
+    copy.lastMerged = now
+    Nodes.markLabelDirty(state, copy)
+    return true
 }

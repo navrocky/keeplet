@@ -75,8 +75,17 @@ with server-added fields); `writeResults` exists but its contents were not inspe
 | Indent item | `superListItemId` = id of the item above | server adds `superListItemServerId` |
 | Add label | `labelIds: [{labelId, deleted: <never>}]` | echoed as `[{labelId}]` |
 | Remove label | the entry with `deleted: <now>` | entry disappears from the echoed `labelIds` |
+| Create label | `userInfo.labels: [{mainId, name, timestamps, lastMerged}]` with a client-made `mainId` (same id format as nodes), no nodes needed | accepted; the server keeps the client `mainId` and answers with `userInfo.labels` = **all** labels of the account (`name`, `mainId`, `timestamps{created, updated}`) |
+| Create label + attach it to a note | the label in `userInfo.labels` and the note with `labelIds` in the **same** request | works |
+| Rename label | the label (as the server returned it) with the new `name`, `timestamps.updated`, `lastMerged` | echoed in the full list |
+| Delete label | the label with `timestamps.deleted = <now>` | the label is **absent** from the answer (no tombstone); notes keep their `labelIds` entry for it (the server does not strip it) |
 | Trash | `timestamps.trashed = <now>` | echoed; restore by setting it back to the epoch value |
 | Delete for good | `timestamps.deleted = <now>` on the note **and** its items | tombstones come back: `id`, `serverId`, `timestamps.deleted` only |
+
+Labels (verified 2026-10-17 with `spike/run-write.sh`, steps 5c-5h): `userInfo.labels` of a response is the
+**complete** list of live labels, so the client replaces its label map with it (`nodes.applyChanges`); a response
+without `userInfo` leaves labels alone. Local label edits are queued in `state.labelsDirty` and sent with the first
+page of the next sync. A dangling `labelIds` entry of a deleted label is ignored when building notes.
 
 Facts that shape the implementation:
 - **No `baseVersion`** exists on nodes in this API version; edits were accepted using the client `id` and the
@@ -100,5 +109,4 @@ checklist items renumbers all `sortValue`s of that list (existing values cannot 
 unverified. Because the server pushes checked items to a large negative `sortValue`, after a sync the checked items
 are at the end of the array; the editor shows them in the Done section in that order.
 
-_Still open:_ the meaning of `writeResults`, creating and
-renaming labels (`userInfo.labels`), images and drawings.
+_Still open:_ the meaning of `writeResults`, images and drawings.

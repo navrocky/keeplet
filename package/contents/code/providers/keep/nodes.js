@@ -5,11 +5,12 @@
 //
 // State is plain data so it can be cached as JSON:
 //   { version: "<toVersion>", nodes: { <id>: <raw server node> }, labels: { <mainId>: <raw label> },
-//     dirty: { <id>: {node, rev} }, rev: <counter> }
+//     dirty: { <id>: {node, rev} }, labelsDirty: { <mainId>: {label, rev} }, rev: <counter> }
 // Raw server nodes are kept untouched so that changed nodes can be sent back with every
 // field the server gave us, including ones we don't understand.
 // `dirty` holds local edits not yet accepted by the server: the node to send and the revision at which
-// it was last edited. Edits survive restarts because the whole state is cached.
+// it was last edited. `labelsDirty` is the same for labels (created, renamed or deleted here; a deleted label
+// is only kept there, not in `labels`). Edits survive restarts because the whole state is cached.
 
 var ROOT = "root"
 var NEVER_PREFIX = "1970-01-01"
@@ -18,13 +19,15 @@ var COLORS = ["DEFAULT", "RED", "ORANGE", "YELLOW", "GREEN", "TEAL", "BLUE",
               "CERULEAN", "PURPLE", "PINK", "BROWN", "GRAY"]
 
 function createState() {
-    return { version: "", nodes: {}, labels: {}, dirty: {}, rev: 0 }
+    return { version: "", nodes: {}, labels: {}, dirty: {}, labelsDirty: {}, rev: 0 }
 }
 
 // A cached state from an older layout (no `dirty`) is upgraded in place.
 function normalizeState(state) {
     if (!state.dirty || typeof state.dirty !== "object")
         state.dirty = {}
+    if (!state.labelsDirty || typeof state.labelsDirty !== "object")
+        state.labelsDirty = {}
     if (typeof state.rev !== "number")
         state.rev = 0
     return state
@@ -37,8 +40,19 @@ function markDirty(state, raw) {
     state.dirty[raw.id] = { node: raw, rev: state.rev }
 }
 
+// Records a locally created, renamed or deleted raw label (a deleted one has timestamps.deleted set).
+function markLabelDirty(state, raw) {
+    if (isDeleted(raw))
+        delete state.labels[raw.mainId]
+    else
+        state.labels[raw.mainId] = raw
+    state.rev += 1
+    state.labelsDirty[raw.mainId] = { label: raw, rev: state.rev }
+}
+
+// Local edits (notes and labels) not yet accepted by the server.
 function pendingCount(state) {
-    return Object.keys(state.dirty || {}).length
+    return Object.keys(state.dirty || {}).length + Object.keys(state.labelsDirty || {}).length
 }
 
 // Timestamps that were never set are serialized as the Unix epoch.
@@ -52,7 +66,12 @@ function isDeleted(raw) {
 
 // Merges a /changes response into state (mutates it). Deleted nodes and labels are dropped.
 // options.skip(id) -> true keeps the local version of that node (an edit made while the request
-// was in flight must not be overwritten by the older server copy).
+// was in flight must not be overwritten by the older server copy); options.skipLabel(mainId) does the same
+// for a label.
+//
+// userInfo.labels, when present, is the COMPLETE list of the account's labels (verified: a deleted label is
+// simply absent, there is no tombstone), so labels missing from it are dropped. A response without
+// userInfo leaves the labels alone.
 function applyChanges(state, response, options) {
     var skip = options && options.skip
     ;(response.nodes || []).forEach(function (raw) {
@@ -63,13 +82,24 @@ function applyChanges(state, response, options) {
         else
             state.nodes[raw.id] = raw
     })
-    var labels = (response.userInfo && response.userInfo.labels) || []
-    labels.forEach(function (label) {
-        if (isDeleted(label))
-            delete state.labels[label.mainId]
-        else
-            state.labels[label.mainId] = label
-    })
+    var serverLabels = response.userInfo && response.userInfo.labels
+    if (Array.isArray(serverLabels)) {
+        var skipLabel = options && options.skipLabel
+        var next = {}
+        serverLabels.forEach(function (label) {
+            if (isDeleted(label) || (skipLabel && skipLabel(label.mainId)))
+                return
+            next[label.mainId] = label
+        })
+        // A label edited while the request was in flight keeps its newer local version.
+        if (skipLabel) {
+            Object.keys(state.labels).forEach(function (id) {
+                if (skipLabel(id))
+                    next[id] = state.labels[id]
+            })
+        }
+        state.labels = next
+    }
     if (response.toVersion)
         state.version = response.toVersion
     return state

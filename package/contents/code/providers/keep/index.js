@@ -17,7 +17,7 @@ var capabilities = {
     write: true,      // session.commit / remove / pending
     reorder: true,    // session.reorder (manual order of notes; sortValue of the note node)
     offlineEdit: true, // edits are queued locally and sent when the server is reachable
-    labelEdit: false, // create / rename / delete labels: enabled once the wire format is verified (docs/keep-protocol.md)
+    labelEdit: true,  // create / rename / delete labels (userInfo.labels, verified: docs/keep-protocol.md)
     persistent: false // the server is the source of truth; the local state is a disposable cache
 }
 
@@ -107,7 +107,7 @@ function createSession(account, secret, options) {
             if (obj && typeof obj.nodes === "object" && typeof obj.labels === "object") {
                 return Nodes.normalizeState({
                     version: obj.version || "", nodes: obj.nodes, labels: obj.labels,
-                    dirty: obj.dirty, rev: obj.rev
+                    dirty: obj.dirty, labelsDirty: obj.labelsDirty, rev: obj.rev
                 })
             }
             return null
@@ -128,11 +128,26 @@ function createSession(account, secret, options) {
                 var d = state.dirty[id]
                 return !!d && sentRev[id] !== d.rev
             }
-            return run(state, pending, false, { skip: skip }).then(function () {
+            var pendingLabels = []
+            var sentLabelRev = {}
+            Object.keys(state.labelsDirty).forEach(function (id) {
+                pendingLabels.push(state.labelsDirty[id].label)
+                sentLabelRev[id] = state.labelsDirty[id].rev
+            })
+            var skipLabel = function (id) {
+                var d = state.labelsDirty[id]
+                return !!d && sentLabelRev[id] !== d.rev
+            }
+            return run(state, pending, false, { skip: skip, skipLabel: skipLabel, dirtyLabels: pendingLabels }).then(function () {
                 Object.keys(sentRev).forEach(function (id) {
                     var d = state.dirty[id]
                     if (d && d.rev === sentRev[id])
                         delete state.dirty[id]
+                })
+                Object.keys(sentLabelRev).forEach(function (id) {
+                    var d = state.labelsDirty[id]
+                    if (d && d.rev === sentLabelRev[id])
+                        delete state.labelsDirty[id]
                 })
                 // Tombstones of notes deleted here have served their purpose.
                 Object.keys(state.nodes).forEach(function (id) {
@@ -176,6 +191,22 @@ function createSession(account, secret, options) {
         reorder: function (state, noteId, order) {
             Nodes.normalizeState(state)
             return Mutations.reorder(state, noteId, order)
+        },
+
+        // Labels are sent in userInfo.labels with the next sync, queued like any edit.
+        createLabel: function (state, name) {
+            Nodes.normalizeState(state)
+            return Mutations.createLabel(state, name)
+        },
+
+        renameLabel: function (state, id, name) {
+            Nodes.normalizeState(state)
+            return Mutations.renameLabel(state, id, name)
+        },
+
+        deleteLabel: function (state, id) {
+            Nodes.normalizeState(state)
+            return Mutations.deleteLabel(state, id)
         },
 
         // Number of local edits not yet accepted by the server.

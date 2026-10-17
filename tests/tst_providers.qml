@@ -383,4 +383,47 @@ TestCase {
         tryVerify(function () { return done })
         compare(opts.data.notes.filter(function (n) { return n.id === "a" })[0].order, 30)
     }
+
+    function test_keepSessionSendsLabelEditsAndClearsTheQueue() {
+        var sent = []
+        var s = Keep.createSession(account, "master", {
+            performOAuth: oauthOk({ n: 0 }),
+            transport: function (token, body) {
+                sent.push(body)
+                // The server echoes the complete label list; a deleted label is absent.
+                var labels = (body.userInfo ? body.userInfo.labels : []).filter(function (l) {
+                    return l.timestamps.deleted.indexOf("1970") === 0
+                })
+                return Promise.resolve({ toVersion: "v1", truncated: false, userInfo: { labels: labels } })
+            }
+        })
+        verify(Keep.capabilities.labelEdit)
+        compare(Contract.validateSession(s, Keep.capabilities).join(), "")
+        var state = s.createState()
+        var made = s.createLabel(state, "Ideas")
+        verify(made !== null)
+        compare(s.pending(state), 1)
+        compare(s.labels(state)[0].name, "Ideas")
+        var done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(sent[0].userInfo.labels[0].mainId, made.id)
+        compare(s.pending(state), 0)
+        compare(s.labels(state)[0].name, "Ideas")
+
+        // Rename, then delete: each goes out once and the label is gone afterwards.
+        verify(s.renameLabel(state, made.id, "Plans"))
+        done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        compare(sent[1].userInfo.labels[0].name, "Plans")
+        verify(s.deleteLabel(state, made.id))
+        compare(s.labels(state).length, 0)
+        done = false
+        s.sync(state).then(function () { done = true })
+        tryVerify(function () { return done })
+        verify(sent[2].userInfo.labels[0].timestamps.deleted.indexOf("1970") !== 0)
+        compare(s.pending(state), 0)
+        compare(s.labels(state).length, 0)
+    }
 }

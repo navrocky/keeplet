@@ -33,7 +33,7 @@ function timestamp(date) {
     return (date || new Date()).toISOString().replace("Z", "000Z")
 }
 
-function buildRequest(state, dirtyNodes, sessionId) {
+function buildRequest(state, dirtyNodes, sessionId, dirtyLabels) {
     var req = {
         nodes: dirtyNodes || [],
         clientTimestamp: timestamp(),
@@ -44,6 +44,8 @@ function buildRequest(state, dirtyNodes, sessionId) {
             capabilities: CAPABILITIES.map(function (t) { return { type: t } })
         }
     }
+    if (dirtyLabels && dirtyLabels.length > 0)
+        req.userInfo = { labels: dirtyLabels }
     if (state.version)
         req.targetVersion = state.version
     return req
@@ -77,18 +79,20 @@ function changes(authToken, body) {
 
 // Pulls (and pushes dirtyNodes with the first page) until the server says nothing is truncated.
 // Mutates state. Resolves with state. send(authToken, body) is injectable for tests.
-// options.skip(id) keeps the local version of a node (see nodes.applyChanges).
+// options.skip(id) / options.skipLabel(mainId) keep the local version of a node / label (see nodes.applyChanges).
+// options.dirtyLabels: raw labels (created, renamed, deleted here) sent with the first page.
 // A forced full resync drops the cached server data but keeps pending local edits and sends them again.
 function sync(authToken, state, dirtyNodes, send, options) {
     send = send || changes
-    var applyOptions = options && options.skip ? { skip: options.skip } : undefined
+    var applyOptions = options && (options.skip || options.skipLabel)
+                       ? { skip: options.skip, skipLabel: options.skipLabel } : undefined
     var sessionId = newSessionId()
     var pages = 0
 
-    function step(nodes, resynced) {
+    function step(nodes, labels, resynced) {
         if (++pages > MAX_PAGES)
             return Promise.reject(new KeepApiError("Protocol", 0, "too many pages"))
-        return send(authToken, buildRequest(state, nodes, sessionId)).then(function (resp) {
+        return send(authToken, buildRequest(state, nodes, sessionId, labels)).then(function (resp) {
             if (resp.forceFullResync) {
                 if (resynced)
                     throw new KeepApiError("Protocol", 0, "server keeps asking for a full resync")
@@ -99,13 +103,19 @@ function sync(authToken, state, dirtyNodes, send, options) {
                     state.nodes[id] = state.dirty[id].node
                     return state.dirty[id].node
                 })
-                return step(resend, true)
+                var resendLabels = Object.keys(state.labelsDirty || {}).map(function (id) {
+                    var raw = state.labelsDirty[id].label
+                    if (!Nodes.isDeleted(raw))
+                        state.labels[id] = raw
+                    return raw
+                })
+                return step(resend, resendLabels, true)
             }
             Nodes.applyChanges(state, resp, applyOptions)
             if (resp.truncated)
-                return step([], resynced)
+                return step([], [], resynced)
             return state
         })
     }
-    return step(dirtyNodes || [], false)
+    return step(dirtyNodes || [], (options && options.dirtyLabels) || [], false)
 }
