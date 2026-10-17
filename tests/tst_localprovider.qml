@@ -92,4 +92,49 @@ TestCase {
         tryVerify(function () { return done })
         compare(s.notes(st).length, 1)
     }
+
+    // --- label editing
+
+    function test_createLabelTrimsAndRejectsEmptyAndDuplicates() {
+        var s = session(), st = s.createState()
+        var a = s.createLabel(st, "  Work  ")
+        compare(a.name, "Work")
+        verify(a.id !== "")
+        compare(s.createLabel(st, "work"), null)   // case-insensitive duplicate
+        compare(s.createLabel(st, "   "), null)
+        compare(s.labels(st).length, 1)
+    }
+
+    function test_renameLabelUpdatesNotes() {
+        var s = session(), st = s.createState()
+        var l = s.createLabel(st, "Work")
+        s.commit(st, note({ labels: [{ id: l.id, name: "Work" }] }))
+        verify(s.renameLabel(st, l.id, "Job"))
+        compare(s.labels(st)[0].name, "Job")
+        compare(s.notes(st)[0].labels[0].name, "Job")
+        verify(!s.renameLabel(st, l.id, ""))
+        verify(!s.renameLabel(st, "nope", "X"))
+        s.createLabel(st, "Home")
+        verify(!s.renameLabel(st, l.id, "home"))   // taken by another label
+        verify(s.renameLabel(st, l.id, "JOB"))     // only the case changes: allowed
+    }
+
+    function test_deleteLabelStripsItFromNotesButKeepsThem() {
+        var s = session(), st = s.createState()
+        var l = s.createLabel(st, "Work")
+        s.commit(st, note({ labels: [{ id: l.id, name: "Work" }, { id: "", name: "Keep" }] }))
+        verify(s.deleteLabel(st, l.id))
+        compare(s.notes(st).length, 1)
+        compare(s.notes(st)[0].labels.length, 1)
+        compare(s.notes(st)[0].labels[0].name, "Keep")
+        verify(!s.deleteLabel(st, l.id))
+    }
+
+    function test_commitReusesLabelByNameIgnoringCase() {
+        var s = session(), st = s.createState()
+        s.createLabel(st, "Work")
+        var n = s.commit(st, note({ labels: [{ id: "", name: "WORK" }] }))
+        compare(s.labels(st).length, 1)
+        compare(n.labels[0].name, "Work")
+    }
 }

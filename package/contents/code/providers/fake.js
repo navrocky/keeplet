@@ -1,6 +1,7 @@
 .pragma library
 .import "../core/notes.js" as Notes
 .import "../core/errors.js" as Errors
+.import "../core/labels.js" as Labels
 
 // In-memory provider for tests and UI previews. Not registered in the release registry.
 // createSession's options: {data: {notes: [...], labels: [...]}, fail: ProviderError|null}
@@ -12,7 +13,7 @@ var icon = "applications-development"
 
 var capabilities = {
     labels: "multi", colors: ["DEFAULT", "RED", "BLUE"], checklists: true, nestedItems: false, convertType: true,
-    pinned: true, archive: true, trash: true, images: false, write: true, reorder: true, offlineEdit: true, persistent: false
+    pinned: true, archive: true, trash: true, images: false, write: true, reorder: true, offlineEdit: true, persistent: false, labelEdit: true
 }
 
 var credentialFields = [{ key: "name", label: "Name", secret: false }]
@@ -54,7 +55,14 @@ function createSession(account, secret, options) {
                 return Promise.reject(options.fail)
             var data = options.data || { notes: [], labels: [] }
             ;(state.pending || []).forEach(function (op) {
-                if (op.kind === "remove")
+                if (op.kind === "label") {
+                    if (op.op === "create")
+                        data.labels.push({ id: op.id, name: op.name })
+                    else if (op.op === "rename")
+                        Labels.rename(data, op.id, op.name)
+                    else
+                        Labels.remove(data, op.id)
+                } else if (op.kind === "remove")
                     data.notes = data.notes.filter(function (n) { return n.id !== op.id })
                 else if (op.kind === "order")
                     data.notes.forEach(function (n) { if (n.id === op.id) n.order = op.order })
@@ -99,6 +107,28 @@ function createSession(account, secret, options) {
             upsert(state.notes, note)
             state.pending.push({ kind: "save", note: note })
             return Notes.makeNote(note)
+        },
+
+        createLabel: function (state, name) {
+            _counter += 1
+            var made = Labels.create(state, name, function () { return "fake-label-" + _counter })
+            if (made)
+                state.pending.push({ kind: "label", op: "create", id: made.id, name: made.name })
+            return made
+        },
+
+        renameLabel: function (state, id, name) {
+            if (!Labels.rename(state, id, name))
+                return false
+            state.pending.push({ kind: "label", op: "rename", id: id, name: Labels.cleanName(name) })
+            return true
+        },
+
+        deleteLabel: function (state, id) {
+            if (!Labels.remove(state, id))
+                return false
+            state.pending.push({ kind: "label", op: "delete", id: id })
+            return true
         },
 
         reorder: function (state, noteId, order) {

@@ -69,6 +69,17 @@ TestCase {
             .some(function (p) { return p.indexOf("colors must be an array") >= 0 }))
     }
 
+    function test_labelEditCapabilityRequiresLabelMethods() {
+        var caps = { labelEdit: true }
+        var base = { createState: 1, restoreState: 1, sync: 1, notes: 1, labels: 1 }
+        var session = {}
+        Object.keys(base).forEach(function (k) { session[k] = function () {} })
+        var problems = Contract.validateSession(session, caps)
+        verify(problems.some(function (p) { return p.indexOf("createLabel") >= 0 }))
+        verify(problems.some(function (p) { return p.indexOf("deleteLabel") >= 0 }))
+        verify(Contract.validateSession(session, { labelEdit: false }).length === 0)
+    }
+
     function test_registryListsKeep() {
         verify(Registry.get("keep") !== null)
         compare(Registry.get("keep").name, "Google Keep")

@@ -17,6 +17,7 @@ var capabilities = {
     write: true,      // session.commit / remove / pending
     reorder: true,    // session.reorder (manual order of notes; sortValue of the note node)
     offlineEdit: true, // edits are queued locally and sent when the server is reachable
+    labelEdit: false, // create / rename / delete labels: enabled once the wire format is verified (docs/keep-protocol.md)
     persistent: false // the server is the source of truth; the local state is a disposable cache
 }
 

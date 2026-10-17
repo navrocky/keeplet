@@ -1,6 +1,7 @@
 .pragma library
 .import "../../core/notes.js" as Notes
 .import "../keep/nodes.js" as Nodes
+.import "../../core/labels.js" as Labels
 
 // Local provider: notes live only on this machine, there is no service and no sign-in. The provider state
 // IS the data, so the app must keep it durably (capabilities.persistent) instead of treating it as a cache.
@@ -14,6 +15,7 @@ var capabilities = {
     labels: "multi", colors: Nodes.COLORS, checklists: true, nestedItems: false, convertType: true,
     pinned: true, archive: true, trash: true, images: false,
     write: true, reorder: true, offlineEdit: true,
+    labelEdit: true,
     persistent: true  // the state is the only copy: saved at once, never replaced by an empty one
 }
 
@@ -59,13 +61,14 @@ function createSession(account, secret, options) {
     function resolveLabels(state, labels) {
         return (labels || []).map(function (l) {
             var found = null
-            state.labels.forEach(function (x) { if (x.id === l.id || x.name === l.name) found = x })
-            if (!found) {
-                found = { id: l.id || _newId("g"), name: l.name }
-                state.labels.push(found)
-            }
+            var lower = String(l.name).toLowerCase()
+            state.labels.forEach(function (x) { if (x.id === l.id || x.name.toLowerCase() === lower) found = x })
+            if (!found)
+                found = Labels.create(state, l.name, function () { return l.id || _newId("g") })
+            if (!found)
+                return null
             return { id: found.id, name: found.name }
-        })
+        }).filter(function (l) { return l !== null })
     }
 
     return {
@@ -108,6 +111,14 @@ function createSession(account, secret, options) {
                 state.notes.push(note)
             return Notes.makeNote(note)
         },
+
+        createLabel: function (state, name) {
+            return Labels.create(state, name, function () { return _newId("g") })
+        },
+
+        renameLabel: function (state, id, name) { return Labels.rename(state, id, name) },
+
+        deleteLabel: function (state, id) { return Labels.remove(state, id) },
 
         reorder: function (state, noteId, order) {
             var n = find(state, noteId)
