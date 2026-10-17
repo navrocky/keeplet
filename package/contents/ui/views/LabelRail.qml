@@ -156,7 +156,7 @@ Item {
                 // Fixed, whatever is shown inside (collapsed or not): rows never change height.
                 implicitHeight: rail.rowContentHeight + topPadding + bottomPadding
                 // Headers are not selectable (they stay enabled: their "new label" button lives inside).
-                hoverEnabled: !isHeader
+                hoverEnabled: !isHeader && rail.dragNoteKey === ""   // no hover frame under our own drop frame
                 // While a note is carried only the drop states are drawn: a selected row would add a second frame.
                 highlighted: !isHeader && !isAdd && rail.vm.selected === modelData.key && rail.dragNoteKey === ""
                 topPadding: isHeader ? Kirigami.Units.largeSpacing : Kirigami.Units.smallSpacing
