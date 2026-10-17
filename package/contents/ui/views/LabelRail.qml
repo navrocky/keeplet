@@ -24,6 +24,9 @@ Item {
     }
     clip: true
 
+    readonly property real rowContentHeight: Math.max(rowMetrics.height, Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.smallSpacing * 2)
+    FontMetrics { id: rowMetrics }
+
     // Names of built-in groups are user-facing text, derived from the item kind.
     function groupName(item) {
         if (item.type === "addLabel")
@@ -227,6 +230,8 @@ Item {
 
                 contentItem: RowLayout {
                     spacing: Kirigami.Units.smallSpacing
+                    // The same height collapsed or not (the "+" button and the labels come and go), so rows do not jump.
+                    implicitHeight: rail.rowContentHeight
 
                     Kirigami.Icon {
                         source: row.isAdd ? "list-add" : row.modelData.icon
