@@ -24,8 +24,8 @@ Item {
     }
     clip: true
 
-    readonly property real rowContentHeight: Math.max(rowMetrics.height, Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.smallSpacing * 2)
-    FontMetrics { id: rowMetrics }
+    readonly property real rowContentHeight: Math.max(rowMetrics.implicitHeight, Kirigami.Units.iconSizes.smallMedium + Kirigami.Units.smallSpacing * 2)
+    QQC2.Label { id: rowMetrics; text: "Ag"; visible: false }
 
     // Names of built-in groups are user-facing text, derived from the item kind.
     function groupName(item) {
@@ -148,6 +148,8 @@ Item {
                 readonly property bool editable: modelData.kind === "label" && rail.vm.canEditLabels(modelData.accountKey)
 
                 width: rail.dragNoteKey === "" ? groups.width : groups.width * 0.94
+                // Fixed, whatever is shown inside (collapsed or not): rows never change height.
+                implicitHeight: rail.rowContentHeight + topPadding + bottomPadding
                 // Headers are not selectable (they stay enabled: their "new label" button lives inside).
                 hoverEnabled: !isHeader
                 // While a note is carried only the drop states are drawn: a selected row would add a second frame.
