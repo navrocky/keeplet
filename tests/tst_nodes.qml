@@ -32,7 +32,7 @@ TestCase {
             ] },
             nodes: [
                 node({ id: "n1", type: "NOTE", title: "Shopping", color: "YELLOW", isPinned: true,
-                       sortValue: "300", labelIds: [{ labelId: "L1" }, { labelId: "gone" }, { labelId: "L2", deleted: ts() }] }),
+                       sortValue: "300", labelIds: [{ labelId: "L1" }, { labelId: "gone" }, { labelId: "L2", deleted: now }] }),
                 node({ id: "n1.b", parentId: "n1", type: "LIST_ITEM", text: "milk, eggs", sortValue: "100" }),
                 node({ id: "l1", type: "LIST", title: "Todo", sortValue: "200", isArchived: true }),
                 node({ id: "l1.a", parentId: "l1", type: "LIST_ITEM", text: "first", sortValue: "10" }),

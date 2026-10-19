@@ -132,7 +132,7 @@ function _labelsOf(raw, state) {
     var out = []
     ;(raw.labelIds || []).forEach(function (ref) {
         var label = state.labels[ref.labelId]
-        if (label && !ref.deleted)
+        if (label && !isSet(ref.deleted))
             out.push({ id: label.mainId, name: label.name })
     })
     return out
