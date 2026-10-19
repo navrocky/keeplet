@@ -48,12 +48,29 @@ Item {
         }
     }
 
+    // The ghost's caption: the title, else the first non-empty line of the text (or first item of a list).
+    function dragCaption(note) {
+        if (note.title !== "")
+            return note.title
+        var lines = (note.text || "").split("\n")
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i].trim() !== "")
+                return lines[i].trim()
+        }
+        var items = note.items || []
+        for (var j = 0; j < items.length; j++) {
+            if (items[j].text && items[j].text.trim() !== "")
+                return items[j].text.trim()
+        }
+        return i18n("Untitled note")
+    }
+
     // --- drag of a note onto a group: the ghost follows the pointer, groups accept the drop
     function beginDrag(note, card, scenePosition) {
         var origin = card.mapToItem(view, 0, 0)
         var pointer = view.mapFromItem(null, scenePosition.x, scenePosition.y)
         dragHeight = card.height
-        dragLayer.begin(note.key, note.title !== "" ? note.title : i18n("Untitled note"),
+        dragLayer.begin(note.key, view.dragCaption(note),
                         pointer.x, pointer.y, origin.x, origin.y, card.width, card.height, card.color)
         placeholderLive = false
         updateInsertion()      // the placeholder is there at once, in the carried card's own place
@@ -256,7 +273,7 @@ Item {
                 PlasmaComponents.ToolTip.visible: hovered
             }
 
-            PlasmaComponents.TextField {
+            PlasmaExtras.SearchField {
                 Layout.fillWidth: true
                 placeholderText: i18n("Search notes")
                 onTextChanged: view.vm.searchText = text
@@ -449,7 +466,20 @@ Item {
                     transform: Translate { id: slide }
                     ListView {
                         id: list
-                        model: view.vm.notes
+                        // Not a binding: a new array resets the view to the top, the scroll position is kept by hand.
+                        property bool keepTop: false    // another group is shown: start from the top
+                        Component.onCompleted: model = view.vm.notes
+                        Connections {
+                            target: view.vm
+                            function onSelectedChanged() { list.keepTop = true }
+                            function onNotesChanged() {
+                                var y = list.keepTop ? 0 : list.contentY
+                                list.keepTop = false
+                                list.model = view.vm.notes
+                                list.forceLayout()
+                                list.contentY = Math.max(0, Math.min(y, list.contentHeight - list.height))
+                            }
+                        }
                         spacing: Kirigami.Units.largeSpacing
                         clip: true
                         interactive: !hold.armed
