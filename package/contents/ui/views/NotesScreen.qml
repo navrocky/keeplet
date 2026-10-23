@@ -6,6 +6,7 @@ import org.kde.plasma.components as PlasmaComponents
 import org.kde.plasma.extras as PlasmaExtras
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasmoid
+import "links.js" as Links
 
 // Notes screen. Presentation only: reads and commands go through the ViewModels.
 // The root is a plain Item: the drag layer must be a sibling of the layout, never a child of it.
@@ -484,6 +485,12 @@ Item {
                         clip: true
                         interactive: !hold.armed
 
+                        // The link under a point (content coordinates) of a slot's card: a click opens it instead of the note.
+                        function linkAt(slot, position) {
+                            var p = slot.cardItem.mapFromItem(list.contentItem, position.x, position.y)
+                            return slot.cardItem.linkAt(p.x, p.y)
+                        }
+
                         // Pointer handling lives here, on the list, because it must outlive the cards: a delegate is
                         // destroyed when it scrolls out of view, and a drag has to survive that.
                         // (Handlers declared in a ListView work in content coordinates, as ListView.itemAt expects.)
@@ -492,7 +499,12 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onTapped: eventPoint => {
                                 var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
-                                if (slot && !hold.carried)
+                                if (!slot || hold.carried)
+                                    return
+                                var url = list.linkAt(slot, eventPoint.position)
+                                if (url !== "")
+                                    Qt.openUrlExternally(url)
+                                else
                                     view.vm.openNote(slot.modelData.key)
                             }
                         }
@@ -502,8 +514,8 @@ Item {
                             onTapped: eventPoint => {
                                 var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
                                 if (slot)
-                                    noteMenu.openFor(slot.modelData, list.contentItem,
-                                                     eventPoint.position)
+                                    noteMenu.openFor(slot.modelData, list.linkAt(slot, eventPoint.position),
+                                                     list.contentItem, eventPoint.position)
                             }
                         }
 
@@ -680,17 +692,32 @@ Item {
     PlasmaExtras.Menu {
         id: noteMenu
         property var note: null
+        property string link: ""    // the link under the pointer, if any
         readonly property bool inTrash: note !== null && note.trashed
         readonly property var colors: note !== null && view.vm.capabilities(note.accountKey)
                                       ? view.vm.capabilities(note.accountKey).colors : []
 
         // The menu is a window of its own (native look, shadow); it opens at the pointer.
-        function openFor(n, item, position) {
+        function openFor(n, url, item, position) {
             note = n
+            link = url
             visualParent = item
             open(Math.round(position.x), Math.round(position.y))
         }
 
+        PlasmaExtras.MenuItem {
+            visible: noteMenu.link !== ""
+            text: i18n("Open link")
+            icon: "internet-web-browser"
+            onClicked: Qt.openUrlExternally(noteMenu.link)
+        }
+        PlasmaExtras.MenuItem {
+            visible: noteMenu.link !== ""
+            text: i18n("Copy link address")
+            icon: "edit-copy"
+            onClicked: view.copyToClipboard(Links.address(noteMenu.link))
+        }
+        PlasmaExtras.MenuItem { separator: true; visible: noteMenu.link !== "" }
         PlasmaExtras.MenuItem {
             visible: !noteMenu.inTrash
             text: noteMenu.note !== null && noteMenu.note.pinned ? i18n("Unpin") : i18n("Pin")

@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import org.kde.plasma.components as PlasmaComponents
 import org.kde.kirigami as Kirigami
 import "keepColors.js" as KeepColors
+import "links.js" as Links
 
 // One note in the list. Pure presentation: `note` is a plain object from NotesViewModel.
 // Clicks, the context menu and drags are handled by the list (NotesScreen), not here: delegates are
@@ -29,6 +30,25 @@ Rectangle {
     border.width: 1
     border.color: colored ? (dark ? Qt.lighter(color, 1.4) : Qt.darker(color, 1.15)) : Qt.alpha(Kirigami.Theme.textColor, 0.2)
     implicitHeight: content.implicitHeight + Kirigami.Units.largeSpacing * 3
+
+    // The link under a point of the card ("" if none); the list asks before opening the note.
+    function linkAt(x, y) {
+        var labels = [body]
+        for (var i = 0; i < itemLabels.count; i++)
+            labels.push(itemLabels.itemAt(i))
+        for (var j = 0; j < labels.length; j++) {
+            var label = labels[j]
+            if (!label || !label.visible)
+                continue
+            var p = label.mapFromItem(card, x, y)
+            if (label.contains(p)) {
+                var url = label.linkAt(p.x, p.y)
+                if (url !== "")
+                    return url
+            }
+        }
+        return ""
+    }
 
     ColumnLayout {
         id: content
@@ -60,24 +80,30 @@ Rectangle {
         }
 
         PlasmaComponents.Label {
+            id: body
             Layout.fillWidth: true
             visible: card.note.type === "NOTE" && card.note.text !== ""
-            text: card.note.text
+            text: Links.toStyledText(card.note.text)
+            textFormat: Text.StyledText
             color: card.textColor
+            linkColor: card.textColor
             wrapMode: Text.Wrap
             elide: Text.ElideRight
             maximumLineCount: 8
         }
 
         Repeater {
+            id: itemLabels
             model: card.openItems.slice(0, card.maxItems)
 
             PlasmaComponents.Label {
                 required property var modelData
                 Layout.fillWidth: true
                 Layout.leftMargin: modelData.indent * Kirigami.Units.gridUnit
-                text: "☐ " + modelData.text
+                text: "☐ " + Links.toStyledText(modelData.text)
+                textFormat: Text.StyledText
                 color: card.textColor
+                linkColor: card.textColor
                 elide: Text.ElideRight
             }
         }
