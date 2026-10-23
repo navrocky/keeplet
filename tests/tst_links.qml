@@ -29,6 +29,42 @@ TestCase {
         compare(Links.address("https://a.b"), "https://a.b")
     }
 
+    function test_findsPhoneNumbers() {
+        compare(urls("call +7 (999) 123-45-67 now"), "tel:+79991234567")
+        compare(urls("8 999 123 45 67"), "tel:89991234567")
+        compare(urls("+1-202-555-0143, +44 20 7946 0958"), "tel:+12025550143 tel:+442079460958")
+        compare(urls("(495) 123-45-67"), "tel:4951234567")
+        compare(urls("dial 202.555.0143."), "tel:2025550143")
+        compare(urls("local 123-45-67"), "tel:1234567")
+        compare(urls("89991234567"), "tel:89991234567")
+        compare(urls("tel:+79991234567"), "tel:+79991234567")
+        var l = Links.find("call +7 (999) 123-45-67.")[0]
+        compare(l.text, "+7 (999) 123-45-67")
+    }
+
+    function test_numbersThatAreNotPhones() {
+        compare(urls("on 2026-10-23 or 23.10.2026"), "")
+        compare(urls("1 000 000 and 10 000 000"), "")
+        compare(urls("server 192.168.100.200"), "")
+        compare(urls("pi 3.14159265 and 1234567"), "")
+        compare(urls("order id12345678901 and 12345678901234567"), "")
+        compare(urls("at 2026-10-23 12:30"), "")
+        compare(urls("12-34"), "")
+    }
+
+    function test_phonesInsideOtherLinksStayThere() {
+        compare(urls("https://x.y/89991234567 and 89991234567@mail.ru"),
+                "https://x.y/89991234567 mailto:89991234567@mail.ru")
+    }
+
+    function test_kindAndCopiedAddress() {
+        compare(Links.kind("https://a.b"), "web")
+        compare(Links.kind("mailto:a@b.cc"), "email")
+        compare(Links.kind("tel:+79991234567"), "phone")
+        compare(Links.address("tel:+79991234567"), "+79991234567")
+        compare(Links.address("mailto://a@b.cc"), "a@b.cc")
+    }
+
     function test_positionsCoverTheLinkText() {
         var text = "a https://x.y/z, b"
         var l = Links.find(text)[0]

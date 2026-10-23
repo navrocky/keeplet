@@ -56,6 +56,13 @@ Item {
             verify(area.cursorPosition > 6 && area.cursorPosition < 17, "cursor at " + area.cursorPosition)
         }
 
+        function test_phoneAndEmailAreLinksToo() {
+            area.text = "call +7 (999) 123-45-67 or a@b.cc"
+            tryVerify(function () { return layer.segments.length === 2 })
+            compare(layer.segments[0].url, "tel:+79991234567")
+            compare(layer.segments[1].url, "mailto:a@b.cc")
+        }
+
         function test_wrappedLinkGetsOneUnderlinePerLine() {
             area.text = "x https://example.com/" + "a".repeat(120)
             tryVerify(function () { return layer.segments.length > 1 })
