@@ -77,6 +77,16 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   and height. Items are multi-line (`TextArea`, Enter = next item, Shift+Enter = line break); rows are as tall as their text but not below the one-line height, rows report their heights and `tops` stacks them. Rows are **identity-stable**: every item has a client-side `uid` (`NoteEditorViewModel.itemUids`, never saved) and `NoteScreen` keeps a `ListModel` of rows in step with it (insert/remove/move), so an insert creates one row and the others just slide (their `y` follows the item's new place) instead of being rebound to other items.
 - `convertToList` / `convertToText` (capability `convertType`) switch the note type, keeping check marks as Markdown task lines (`- [x] text`, `core/checklist.js`; plain lines when nothing is checked); `asText` feeds "Copy as text"; `clearDone` removes checked items.
 
+## Links
+- `views/links.js` finds web addresses (`http(s)://`, `ftp://`, `www.` → `https://`) and e-mail addresses (→ `mailto:`)
+  in plain text, trimming sentence punctuation and unpaired closing brackets (`tests/tst_links.qml`).
+- Cards render text and items as `Text.StyledText` (`Links.toStyledText`, `linkColor` = text color). `onLinkActivated`
+  is deliberately not connected, so the label never takes the press from the list's handlers; the list's tap asks
+  `NoteCard.linkAt` and opens the link instead of the note, the right-button tap adds Open / Copy link to the note menu.
+- Editor fields stay plain text (rich text would leak into editing). `LinkLayer` fills a field: it draws underlines
+  from `positionToRectangle` (one per wrapped line), opens a link on Ctrl+click (a plain click when the field is
+  read-only) and shows `LinkMenu` on right click; any other press is rejected and reaches the field.
+
 ## List interactions
 - Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a right-button `TapHandler`
   (context menu) and a `PointHandler` + hold `Timer`: a card is picked up by holding it still (~450 ms; it sinks

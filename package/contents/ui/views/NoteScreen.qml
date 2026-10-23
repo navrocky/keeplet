@@ -68,6 +68,8 @@ Rectangle {
 
     function showColors() { colorPopup.open() }
 
+    LinkMenu { id: linkMenu }
+
     // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y belong to the note's history, not to a single text field.
     function handleUndoKeys(event) {
         if (!(event.modifiers & Qt.ControlModifier))
@@ -321,6 +323,13 @@ Rectangle {
                             screen.editor.setText(text)
                     }
                     Keys.onPressed: event => screen.handleUndoKeys(event)
+
+                    LinkLayer {
+                        anchors.fill: parent
+                        field: parent
+                        menu: linkMenu
+                        color: screen.textColor
+                    }
                 }
 
                 // Checklist: unchecked items on top, then a collapsible "Done" section. Rows are positioned by
@@ -709,6 +718,13 @@ Rectangle {
                                     onTextChanged: {
                                         if (row.item !== null && text !== row.item.text)
                                             screen.editor.setItemText(row.index, text)
+                                    }
+
+                                    LinkLayer {
+                                        anchors.fill: parent
+                                        field: parent
+                                        menu: linkMenu
+                                        color: screen.textColor
                                     }
                                     Keys.onPressed: event => {
                                         screen.handleUndoKeys(event)
