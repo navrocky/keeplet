@@ -88,7 +88,7 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   read-only) and shows `LinkMenu` on right click; any other press is rejected and reaches the field.
 
 ## List interactions
-- Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a right-button `TapHandler`
+- Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a `HoverHandler` (hand cursor only over a link), a right-button `TapHandler`
   (context menu) and a `PointHandler` + hold `Timer`: a card is picked up by holding it still (~450 ms; it sinks
   slightly while pressed as a hint), then it follows the pointer in any direction and the list stops flicking.
   Moving before the hold ends is a plain scroll. Delegates are destroyed when they scroll out of view; handlers on them would lose the end of a running drag.

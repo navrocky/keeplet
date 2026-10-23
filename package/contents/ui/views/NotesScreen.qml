@@ -496,7 +496,6 @@ Item {
                         // (Handlers declared in a ListView work in content coordinates, as ListView.itemAt expects.)
                         TapHandler {
                             acceptedButtons: Qt.LeftButton
-                            cursorShape: Qt.PointingHandCursor
                             onTapped: eventPoint => {
                                 var slot = list.itemAt(eventPoint.position.x, eventPoint.position.y)
                                 if (!slot || hold.carried)
@@ -506,6 +505,15 @@ Item {
                                     Qt.openUrlExternally(url)
                                 else
                                     view.vm.openNote(slot.modelData.key)
+                            }
+                        }
+
+                        // Over a link the pointer is a hand: a click there opens the link, not the note.
+                        HoverHandler {
+                            cursorShape: {
+                                var slot = list.itemAt(point.position.x, point.position.y)
+                                return slot && !hold.armed && list.linkAt(slot, point.position) !== ""
+                                       ? Qt.PointingHandCursor : Qt.ArrowCursor
                             }
                         }
 
