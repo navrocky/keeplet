@@ -15,6 +15,7 @@ Item {
 
     required property var vm          // NotesViewModel
     required property var accountsVm  // AccountsViewModel
+    property var linkPreview: null    // LinkPreview, shared by the screens
 
     // One gap everywhere: between the toolbar and the list, and between the rail and the list.
     readonly property int gap: Kirigami.Units.largeSpacing
@@ -509,13 +510,28 @@ Item {
                         }
 
                         // Over a link the pointer is a hand: a click there opens the link, not the note.
+                        // Resting on a web link shows its preview.
                         HoverHandler {
-                            cursorShape: {
+                            id: linkHover
+                            readonly property string link: {
+                                if (!hovered || hold.active)
+                                    return ""
                                 var slot = list.itemAt(point.position.x, point.position.y)
-                                return slot && !hold.armed && list.linkAt(slot, point.position) !== ""
-                                       ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                return slot ? list.linkAt(slot, point.position) : ""
+                            }
+                            cursorShape: link !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onLinkChanged: {
+                                if (!view.linkPreview)
+                                    return
+                                if (link !== "" && Links.kind(link) === "web") {
+                                    var h = Kirigami.Units.gridUnit
+                                    view.linkPreview.hover(link, parent, Qt.rect(point.position.x, point.position.y - h / 2, 1, h))
+                                } else {
+                                    view.linkPreview.unhover()
+                                }
                             }
                         }
+                        onContentYChanged: if (view.linkPreview) view.linkPreview.dismiss()
 
                         TapHandler {
                             acceptedButtons: Qt.RightButton

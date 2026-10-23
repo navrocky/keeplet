@@ -15,6 +15,10 @@
       <label>Show only icons in the group rail</label>
       <default>false</default>
     </entry>
+    <entry name="linkPreviews" type="Bool">
+      <label>Preview web links on hover</label>
+      <default>true</default>
+    </entry>
     <!-- Own order of the list that mixes notes of several accounts (note keys, top first). -->
     <entry name="mixedOrder" type="StringList">
       <label>Order of notes in the mixed list</label>

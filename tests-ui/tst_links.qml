@@ -20,13 +20,24 @@ Item {
         width: 300
         wrapMode: TextEdit.Wrap
         text: "go to www.kde.org now"
-        V.LinkLayer { id: layer; anchors.fill: parent; field: parent; menu: menu }
+        V.LinkLayer { id: layer; anchors.fill: parent; field: parent; menu: menu; preview: preview }
     }
     V.LinkMenu { id: menu }
+    V.LinkPreview { id: preview }
 
     TestCase {
         name: "LinkViews"
         when: windowShown
+
+        // The first underline of a link, once the layer has measured the current text.
+        function segmentOf(url) {
+            var found = null
+            tryVerify(function () {
+                found = layer.segments.filter(function (s) { return s.url === url })[0] || null
+                return found !== null
+            })
+            return found
+        }
 
         function test_cardFindsTheLinkUnderAPoint() {
             var body = card.children[0].children[1]
@@ -37,8 +48,9 @@ Item {
         }
 
         function test_layerUnderlinesAndFindsLinks() {
-            tryVerify(function () { return layer.segments.length === 1 })
-            var s = layer.segments[0]
+            area.text = "go to www.kde.org now"
+            var s = segmentOf("https://www.kde.org")
+            compare(layer.segments.length, 1)
             verify(s.width > 0)
             compare(layer.linkAt(s.x + 1, s.y + 1), "https://www.kde.org")
             compare(layer.linkAt(s.x - 2, s.y + 1), "")
@@ -48,8 +60,7 @@ Item {
 
         function test_plainClickOnALinkEditsTheText() {
             area.text = "go to www.kde.org now"
-            tryVerify(function () { return layer.segments.length === 1 })
-            var s = layer.segments[0]
+            var s = segmentOf("https://www.kde.org")
             area.cursorPosition = 0
             mouseClick(area, s.x + s.width / 2, s.y + s.height / 2)
             verify(area.activeFocus)
@@ -58,9 +69,41 @@ Item {
 
         function test_phoneAndEmailAreLinksToo() {
             area.text = "call +7 (999) 123-45-67 or a@b.cc"
-            tryVerify(function () { return layer.segments.length === 2 })
-            compare(layer.segments[0].url, "tel:+79991234567")
-            compare(layer.segments[1].url, "mailto:a@b.cc")
+            segmentOf("tel:+79991234567")
+            segmentOf("mailto:a@b.cc")
+        }
+
+        function test_restingOnAWebLinkShowsItsPreview() {
+            if (!preview.available)
+                skip("QtWebEngine is not available")
+            area.text = "go to http://127.0.0.1:9/page now, call +7 999 123 45 67"
+            var web = segmentOf("http://127.0.0.1:9/page"), phone = segmentOf("tel:+79991234567")
+            mouseMove(area, web.x + 3, web.y + web.height / 2)
+            tryVerify(function () { return preview.opened }, 3000)
+            compare(preview.url, "http://127.0.0.1:9/page")
+            // Next to the link, never over it, and inside the window.
+            var top = area.mapToItem(preview.parent, 0, web.y).y
+            var bottom = top + web.height
+            verify(preview.y >= bottom || preview.y + preview.height <= top,
+                   "popup " + preview.y + "+" + preview.height + " vs link " + top + ".." + bottom)
+            verify(preview.y >= 0 && preview.y + preview.height <= preview.parent.height)
+            verify(preview.x >= 0 && preview.x + preview.width <= preview.parent.width)
+            // Leaving the link (not into the popup) closes it; a phone number has no preview.
+            mouseMove(area, phone.x + 3, phone.y + phone.height / 2)
+            tryVerify(function () { return !preview.opened }, 3000)
+            wait(1000)
+            verify(!preview.opened)
+        }
+
+        function test_clickInTheFieldHidesThePreview() {
+            if (!preview.available)
+                skip("QtWebEngine is not available")
+            area.text = "go to http://127.0.0.1:9/page now"
+            var web = segmentOf("http://127.0.0.1:9/page")
+            mouseMove(area, web.x + 3, web.y + web.height / 2)
+            tryVerify(function () { return preview.opened }, 3000)
+            mouseClick(area, web.x + 3, web.y + web.height / 2)
+            tryVerify(function () { return !preview.opened })
         }
 
         function test_wrappedLinkGetsOneUnderlinePerLine() {

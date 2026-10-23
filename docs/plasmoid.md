@@ -91,6 +91,14 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 - Editor fields stay plain text (rich text would leak into editing). `LinkLayer` fills a field: it draws underlines
   from `positionToRectangle` (one per wrapped line), opens a link on Ctrl+click (a plain click when the field is
   read-only) and shows `LinkMenu` on right click; any other press is rejected and reaches the field.
+- Web links get a preview: `LinkPreview` (one per widget, owned by `NotesRoot`, passed to both screens as
+  `linkPreview`) is a non-modal `Popup` in the window's overlay. The list's `HoverHandler` and `LinkLayer` call
+  `hover(url, item, rect)` / `unhover()`; it opens after the pointer rests ~0.7 s, next to the link (below, or above
+  when there is more room; never over it), and closes ~0.4 s after the pointer left both the link and the popup, on a
+  press in the field, on scroll and when the screen changes. Closing unloads the page. The page is
+  `LinkPreviewPage.qml`, the second (and only other) file importing `QtWebEngine`: off-the-record profile, muted,
+  no new windows, `zoomFactor` 0.5. Without QtWebEngine the component does not load and previews are off.
+  Setting: `linkPreviews` (General, default on) → `NotesViewModel.linkPreviews` → `LinkPreview.active`.
 
 ## List interactions
 - Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a `HoverHandler` (hand cursor only over a link), a right-button `TapHandler`

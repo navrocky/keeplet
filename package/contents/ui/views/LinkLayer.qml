@@ -3,12 +3,14 @@ import "links.js" as Links
 
 // Links of a plain-text field (the note text, a checklist item): underlined, opened by Ctrl+click (a plain click
 // when the field is read-only), right click shows `menu`. Everything else falls through to the field, so typing
-// and selecting work as usual. Fill the field with it: `LinkLayer { field: parent; anchors.fill: parent }`.
+// and selecting work as usual. Resting the pointer on a web link shows `preview` (a LinkPreview), if given.
+// Fill the field with it: `LinkLayer { field: parent; anchors.fill: parent }`.
 MouseArea {
     id: linkLayer
 
     required property Item field   // a TextEdit / TextArea
     required property LinkMenu menu
+    property var preview: null     // LinkPreview
     property color color: "black"
 
     readonly property var links: Links.find(field.text)
@@ -44,13 +46,17 @@ MouseArea {
         function onFontChanged() { linkLayer.remeasure() }
     }
 
-    function linkAt(x, y) {
+    function segmentAt(x, y) {
         for (var i = 0; i < segments.length; i++) {
             var s = segments[i]
             if (x >= s.x && x < s.x + s.width && y >= s.y && y < s.y + s.height)
-                return s.url
+                return s
         }
-        return ""
+        return null
+    }
+    function linkAt(x, y) {
+        var s = segmentAt(x, y)
+        return s !== null ? s.url : ""
     }
     function opensOnClick(modifiers) {
         return field.readOnly || (modifiers & Qt.ControlModifier)
@@ -73,13 +79,23 @@ MouseArea {
     // Over a link the pointer turns into a hand when a click would open it.
     HoverHandler {
         id: hover
-        cursorShape: linkLayer.linkAt(point.position.x, point.position.y) !== "" && linkLayer.opensOnClick(point.modifiers)
-                     ? Qt.PointingHandCursor : Qt.IBeamCursor
+        readonly property var segment: hovered ? linkLayer.segmentAt(point.position.x, point.position.y) : null
+        cursorShape: segment !== null && linkLayer.opensOnClick(point.modifiers) ? Qt.PointingHandCursor : Qt.IBeamCursor
+        onSegmentChanged: {
+            if (!linkLayer.preview)
+                return
+            if (segment !== null && Links.kind(segment.url) === "web")
+                linkLayer.preview.hover(segment.url, linkLayer, Qt.rect(segment.x, segment.y, segment.width, segment.height))
+            else
+                linkLayer.preview.unhover()
+        }
     }
 
     property string pressedUrl: ""
     acceptedButtons: Qt.LeftButton | Qt.RightButton
     onPressed: mouse => {
+        if (preview)
+            preview.dismiss()
         var url = linkAt(mouse.x, mouse.y)
         if (url !== "" && mouse.button === Qt.RightButton) {
             menu.openFor(url, linkLayer, Qt.point(mouse.x, mouse.y))

@@ -39,6 +39,7 @@ PlasmoidItem {
         // The View toggles the property directly; persist it per widget instance.
         onRailCollapsedChanged: Plasmoid.configuration.railCollapsed = railCollapsed
         mixedOrder: Plasmoid.configuration.mixedOrder
+        linkPreviews: Plasmoid.configuration.linkPreviews
         onMixedOrderChanged: Plasmoid.configuration.mixedOrder = mixedOrder
     }
 

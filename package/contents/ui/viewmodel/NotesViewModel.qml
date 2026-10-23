@@ -49,6 +49,8 @@ QtObject {
     property string selected: "all"
     property string accountFilter: "" // accountKey or "" for all accounts
     property bool railCollapsed: false
+    // Show a preview of a web link when the pointer rests on it (the View loads the page).
+    property bool linkPreviews: true
     // The user's own order of the mixed list (several accounts): note keys, kept by the widget, not in Keep.
     property var mixedOrder: []
 

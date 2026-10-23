@@ -17,7 +17,14 @@ QQC2.StackView {
     initialItem: listScreen
     clip: true
 
+    // The preview of web links, shared by both screens.
+    LinkPreview {
+        id: linkPreview
+        active: stack.vm.linkPreviews
+    }
+
     onNoteOpenChanged: {
+        linkPreview.dismiss()
         if (noteOpen)
             push(noteScreen)
         else if (depth > 1)
@@ -26,12 +33,12 @@ QQC2.StackView {
 
     Component {
         id: listScreen
-        NotesScreen { vm: stack.vm; accountsVm: stack.accountsVm }
+        NotesScreen { vm: stack.vm; accountsVm: stack.accountsVm; linkPreview: linkPreview }
     }
 
     Component {
         id: noteScreen
-        NoteScreen { vm: stack.vm; editor: stack.editor }
+        NoteScreen { vm: stack.vm; editor: stack.editor; linkPreview: linkPreview }
     }
 
     // Forward: new screen slides in from the right while the list fades away; Back: the reverse.

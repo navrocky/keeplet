@@ -26,6 +26,8 @@ Can the widget show Google's sign-in itself and take the one-time `oauth_token` 
 
 ## Consequences
 - Still no native code. `QtWebEngine` is a runtime dependency of the system, optional for the widget.
+- The same pattern (lazy `Qt.createComponent`, feature off when it fails) is reused by the link preview
+  (`views/LinkPreviewPage.qml`, see [plasmoid.md](../plasmoid.md#links)); those two files are the only `QtWebEngine` users.
 - Relies on DevTools internals (`DevToolsAPI`, `InspectorFrontendHost`); if a Qt update breaks them the window reports
   `failed` ("cookie not found") and the user falls back to the manual form.
 - Nothing from the Google session stays on disk (private profile); the password never reaches the widget.

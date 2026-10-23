@@ -13,6 +13,7 @@ Rectangle {
 
     required property var vm       // NotesViewModel
     required property var editor   // NoteEditorViewModel
+    property var linkPreview: null // LinkPreview, shared by the screens
 
     // Keep the last note on screen while the screen slides out after the note was closed.
     property var lastNote: null
@@ -328,6 +329,7 @@ Rectangle {
                         anchors.fill: parent
                         field: parent
                         menu: linkMenu
+                        preview: screen.linkPreview
                         color: screen.textColor
                     }
                 }
@@ -724,6 +726,7 @@ Rectangle {
                                         anchors.fill: parent
                                         field: parent
                                         menu: linkMenu
+                                        preview: screen.linkPreview
                                         color: screen.textColor
                                     }
                                     Keys.onPressed: event => {
