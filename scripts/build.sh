@@ -3,6 +3,8 @@
 # Usage: scripts/build.sh [--no-test]
 set -euo pipefail
 
+set -x
+
 root="$(cd "$(dirname "$0")/.." && pwd)"
 image="keeplet-build"
 run_tests=1
@@ -26,7 +28,7 @@ if [[ -z "$version" ]]; then
     version="0.0.0-dev.${count}+${sha}"
 fi
 
-"$engine" build -q -t "$image" "$root/docker" >/dev/null
+"$engine" build  -t "$image" "$root/docker" >/dev/null
 
 user_args=()
 [[ "$(basename "$engine")" == docker ]] && user_args=(--user "$(id -u):$(id -g)")
