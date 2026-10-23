@@ -78,8 +78,13 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 - `convertToList` / `convertToText` (capability `convertType`) switch the note type, keeping check marks as Markdown task lines (`- [x] text`, `core/checklist.js`; plain lines when nothing is checked); `asText` feeds "Copy as text"; `clearDone` removes checked items.
 
 ## Links
-- `views/links.js` finds web addresses (`http(s)://`, `ftp://`, `www.` → `https://`) and e-mail addresses (→ `mailto:`)
-  in plain text, trimming sentence punctuation and unpaired closing brackets (`tests/tst_links.qml`).
+- `views/links.js` finds web addresses (`http(s)://`, `ftp://`, `www.` → `https://`), e-mail addresses (→ `mailto:`)
+  and phone numbers (→ `tel:` with the digits and a leading `+`) in plain text, trimming sentence punctuation and
+  unpaired closing brackets (`tests/tst_links.qml`). A phone is 7–15 digits with spaces, dashes, dots or brackets:
+  with `+` any such number, without it 10+ digits or a grouped local number (`123-45-67`); dates, IP addresses,
+  thousands (`1 000 000`) and digits glued to letters are not phones. Menus name the action by `Links.kind`
+  (Call / Send e-mail / Open link); copying gives the number or address without the scheme. KDE opens `tel:` with
+  KDE Connect (a call on the paired phone) and `mailto:` with the mail client.
 - Cards render text and items as `Text.StyledText` (`Links.toStyledText`, `linkColor` = text color). `onLinkActivated`
   is deliberately not connected, so the label never takes the press from the list's handlers; the list's tap asks
   `NoteCard.linkAt` and opens the link instead of the note, the right-button tap adds Open / Copy link to the note menu.

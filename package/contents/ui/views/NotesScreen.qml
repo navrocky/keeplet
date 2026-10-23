@@ -701,6 +701,7 @@ Item {
         id: noteMenu
         property var note: null
         property string link: ""    // the link under the pointer, if any
+        readonly property string linkKind: Links.kind(link)
         readonly property bool inTrash: note !== null && note.trashed
         readonly property var colors: note !== null && view.vm.capabilities(note.accountKey)
                                       ? view.vm.capabilities(note.accountKey).colors : []
@@ -715,13 +716,16 @@ Item {
 
         PlasmaExtras.MenuItem {
             visible: noteMenu.link !== ""
-            text: i18n("Open link")
-            icon: "internet-web-browser"
+            text: noteMenu.linkKind === "phone" ? i18n("Call")
+                : noteMenu.linkKind === "email" ? i18n("Send e-mail") : i18n("Open link")
+            icon: noteMenu.linkKind === "phone" ? "call-start"
+                : noteMenu.linkKind === "email" ? "mail-message-new" : "internet-web-browser"
             onClicked: Qt.openUrlExternally(noteMenu.link)
         }
         PlasmaExtras.MenuItem {
             visible: noteMenu.link !== ""
-            text: i18n("Copy link address")
+            text: noteMenu.linkKind === "phone" ? i18n("Copy phone number")
+                : noteMenu.linkKind === "email" ? i18n("Copy e-mail address") : i18n("Copy link address")
             icon: "edit-copy"
             onClicked: view.copyToClipboard(Links.address(noteMenu.link))
         }
