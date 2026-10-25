@@ -1,5 +1,6 @@
 # 0.9.0 (2026-10-25)
 
+- Tells when a new version is out on the KDE Store; Update… installs it through Plasma's Get New Widgets dialog (can be turned off in the settings)
 - Optional anonymous usage statistics: the widget asks once, a checkbox in the settings turns them on or off
 - Link previews: resting the pointer on a web link shows a preview of the page in a popup (needs QtWebEngine); can be turned off in the settings
 - Links in notes: web, e-mail and phone links are underlined on cards and in the editor; a click (Ctrl+click in the editor) opens one, the context menu opens or copies it
