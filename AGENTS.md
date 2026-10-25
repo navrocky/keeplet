@@ -8,6 +8,9 @@ It uses Google Keep's private mobile API (protocol ported from gkeepapi/gpsoauth
   ([why it's enough](docs/decisions/0001-auth-helper.md)).
 - Never log or print tokens (oauth_token, master token, auth token); mask them.
 - Master token lives in KWallet when it is enabled, otherwise in the shared local database (see [docs/auth.md](docs/auth.md)).
+- Usage statistics are opt-in and anonymous: never send note content, label names, e-mails, account keys,
+  tokens, links or error details; every event and parameter must be listed in `code/core/analytics.js` `EVENTS`
+  ([docs/analytics.md](docs/analytics.md)).
 
 ## Architecture rule: MVVM
 - **Model** — `package/contents/code/**/*.js`: pure JS (state, protocol, auth). No QML items, no `i18n`.
@@ -32,6 +35,7 @@ It uses Google Keep's private mobile API (protocol ported from gkeepapi/gpsoauth
 - [docs/providers.md](docs/providers.md) — provider contract, multi-account behavior
 - [docs/auth.md](docs/auth.md) — auth chain, token storage
 - [docs/keep-protocol.md](docs/keep-protocol.md) — Keep `/changes` API and node model
+- [docs/analytics.md](docs/analytics.md) — opt-in usage statistics (GA4), events, keys
 - [docs/plasmoid.md](docs/plasmoid.md) — `package/` layout, QML conventions, Plasma gotchas
 - [docs/development.md](docs/development.md) — dev setup, install, testing, debugging
 - [docs/release.md](docs/release.md) — versioning, CI, publishing

@@ -10,6 +10,9 @@ SemVer tags `vX.Y.Z`. `scripts/build.sh` stamps the version into `metadata.json`
 
 Both call the same `scripts/build.sh`, so local and CI artifacts are built identically.
 
+Repository secrets `GA_MEASUREMENT_ID` and `GA_API_SECRET` compile in the usage statistics keys
+([analytics.md](analytics.md)); without them (forks, local builds) statistics are off.
+
 ## KDE Store
 store.kde.org runs on Pling (OCS API). Steps:
 1. First release: create the product manually (category *Plasma 6 Extensions → Plasma Widgets*),

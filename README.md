@@ -83,6 +83,12 @@ such an account deletes its notes; there is no backup or export yet.
 
 _Creating and renaming labels, and reordering checklist items, are not available yet._
 
+## Privacy
+Keeplet talks only to the services of your accounts. Optionally, and only if you agree when the widget asks,
+it sends anonymous usage statistics (which features are used, error codes, widget version and language;
+never note contents, labels or account details) to Google Analytics. You can turn it off in the widget
+settings → General → *Statistics*. Details: [docs/analytics.md](docs/analytics.md).
+
 ## Uninstall
 Right-click the widget → *Remove*, then:
 ```sh

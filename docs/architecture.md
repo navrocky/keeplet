@@ -20,6 +20,8 @@ Google's Terms of Service.
  NotesView    ─────▶ NotesViewModel   ───────▶  session.sync/notes/labels  (one session per account)
   └ NoteCard              │                     core/workspace.js (merge, filter, sort)
                           └────────────────▶    NotesCache ─▶ LocalDb (snapshot per account)
+ consent notice ───▶ AnalyticsViewModel ──────▶ Analytics ─▶ LocalDb (consent, id) + GA4 (opt-in)
+                     (all ViewModels report commands to Analytics.track)
 ```
 - Views bind to ViewModel properties and call its commands; they hold no logic.
 - ViewModels never import visual types and never produce user-facing text (errors are codes).
@@ -56,6 +58,7 @@ No native code: stage 0 showed that both `/auth` and `/changes` work from QML XH
 | Data | Location |
 |---|---|
 | account registry | `LocalDb` (`QtQuick.LocalStorage` SQLite under `~/.local/share/plasmashell/QML/OfflineStorage/`), **global** |
+| usage statistics consent, random client id, last heartbeat day | `LocalDb`, namespace `analytics`, **global** ([analytics.md](analytics.md)) |
 | secrets (master token) | KWallet folder `Keeplet`, key `<providerId>:<accountId>`; without KWallet the same `LocalDb`, **global** |
 | auth token | memory only |
 | notes snapshot (provider state) | `LocalDb`, one JSON row per account, **global** |
