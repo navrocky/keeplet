@@ -1,7 +1,8 @@
 # Builds the widget on a release tag (x.y.z, e.g. 1.2.0) and attaches it to that tag's GitHub
 # release — creating the release if the tag was pushed from git, or reusing it if it was created
 # in the GitHub UI (which also creates the tag and triggers this same push event). An annotated
-# tag's message becomes the release notes (docs/release.md).
+# tag's message becomes the release notes (docs/release.md). Then publishes the same file on the
+# KDE Store.
 name: Release
 
 on:
@@ -55,3 +56,12 @@ jobs:
               gh release create "$TAG" --verify-tag --title "$TAG" "${notes[@]}"
           fi
           gh release upload "$TAG" "$asset" dist/SHA256SUMS --clobber
+
+      # Replaces the store's file, so Get New Widgets offers this version (docs/release.md).
+      # notes.md is the tag's message from the step above; absent for a lightweight tag.
+      - name: Publish to the KDE Store
+        env:
+          KDE_STORE_USERNAME: ${{ secrets.KDE_STORE_USERNAME }}
+          KDE_STORE_PASSWORD: ${{ secrets.KDE_STORE_PASSWORD }}
+          TAG: ${{ github.ref_name }}
+        run: scripts/kde-store-upload.sh 2379427 "dist/keeplet-${TAG}.plasmoid" notes.md
