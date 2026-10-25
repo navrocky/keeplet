@@ -1,7 +1,7 @@
 # Release
 
 ## Versioning
-SemVer tags `vX.Y.Z`. `scripts/build.sh` stamps the version into `metadata.json` from `git describe`.
+SemVer tags `X.Y.Z`, no `v` prefix. `scripts/build.sh` stamps the version into `metadata.json` from `git describe`.
 
 ## CI (GitHub Actions)
 - `.github/workflows/ci.yml` — on push to `main` and PRs: `scripts/build.sh`, uploads `dist/` as artifact `keeplet-plasmoid`.

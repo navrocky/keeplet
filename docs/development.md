@@ -11,7 +11,7 @@ scripts/build.sh            # tests + qmllint + dist/keeplet-<version>.plasmoid 
 scripts/build.sh --no-test
 ```
 The build image is `docker/Dockerfile`; `scripts/package.sh` is the in-container part.
-Version comes from `git describe` (`v1.2.3` tag → `1.2.3`, otherwise `0.0.0-dev.<n>+<sha>`).
+Version comes from `git describe` (`1.2.3` tag → `1.2.3`, later commits → `1.2.3-4-gabc1234`, untagged → `0.0.0-dev.<n>+<sha>`).
 
 On SELinux hosts the container runs with `--security-opt label=disable` (repo files are not relabeled).
 

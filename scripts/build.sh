@@ -21,8 +21,8 @@ done
 engine="$(command -v docker || command -v podman || true)"
 [[ -n "$engine" ]] || { echo "docker or podman is required" >&2; exit 1; }
 
-# v1.2.3 tag -> 1.2.3; untagged -> 0.0.0-dev.<commits>+<sha>
-version="$(git -C "$root" describe --tags --match 'v[0-9]*' 2>/dev/null | sed 's/^v//' || true)"
+# 1.2.3 tag -> 1.2.3 (1.2.3-4-gabc1234 after it); untagged -> 0.0.0-dev.<commits>+<sha>
+version="$(git -C "$root" describe --tags --match '[0-9]*' 2>/dev/null || true)"
 if [[ -z "$version" ]]; then
     count="$(git -C "$root" rev-list --count HEAD 2>/dev/null || echo 0)"
     sha="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo nogit)"
