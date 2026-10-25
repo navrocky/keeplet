@@ -15,6 +15,10 @@ jobs:
 
       - name: Build (tests, lint, package)
         run: scripts/build.sh
+        env:
+          # Usage statistics keys (docs/analytics.md); empty on forks, then statistics are off.
+          GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID }}
+          GA_API_SECRET: ${{ secrets.GA_API_SECRET }}
 
       - uses: actions/upload-artifact@v4
         with:

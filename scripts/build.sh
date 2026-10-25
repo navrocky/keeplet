@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds dist/keeplet-<version>.plasmoid inside Docker (or Podman).
 # Usage: scripts/build.sh [--no-test]
+# GA_MEASUREMENT_ID / GA_API_SECRET in the environment compile in the usage statistics keys (docs/analytics.md).
 set -euo pipefail
 
 set -x
@@ -36,6 +37,7 @@ user_args=()
 # label=disable: let the container read the repo on SELinux hosts without relabeling it.
 "$engine" run --rm "${user_args[@]}" --security-opt label=disable -v "$root:/src" \
     -e VERSION="$version" -e RUN_TESTS="$run_tests" \
+    -e GA_MEASUREMENT_ID -e GA_API_SECRET \
     "$image" bash /src/scripts/package.sh
 
 echo "built: $root/dist/keeplet-$version.plasmoid"
