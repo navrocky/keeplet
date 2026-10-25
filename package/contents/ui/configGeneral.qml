@@ -11,6 +11,7 @@ import "services"
 KCM.SimpleKCM {
     property alias cfg_syncInterval: syncInterval.value
     property alias cfg_linkPreviews: linkPreviews.checked
+    property alias cfg_checkUpdates: checkUpdates.checked
 
     // Consent to usage statistics is global (all widgets), so it is not a cfg_* entry either: it is stored in the
     // shared database at once, like the accounts (see configAccounts.qml).
@@ -31,6 +32,17 @@ KCM.SimpleKCM {
             id: linkPreviews
             Kirigami.FormData.label: i18n("Links:")
             text: i18n("Show a preview of a web page when the pointer rests on its link")
+        }
+        QQC2.CheckBox {
+            id: checkUpdates
+            Kirigami.FormData.label: i18n("Updates:")
+            text: i18n("Tell me when a new version is out")
+        }
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            text: i18n("Checks the version on store.kde.org once a day.")
         }
         QQC2.CheckBox {
             id: statistics

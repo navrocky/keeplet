@@ -19,6 +19,10 @@
       <label>Preview web links on hover</label>
       <default>true</default>
     </entry>
+    <entry name="checkUpdates" type="Bool">
+      <label>Tell when a new version is out on the KDE Store</label>
+      <default>true</default>
+    </entry>
     <!-- Own order of the list that mixes notes of several accounts (note keys, top first). -->
     <entry name="mixedOrder" type="StringList">
       <label>Order of notes in the mixed list</label>
