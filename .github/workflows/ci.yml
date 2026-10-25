@@ -13,12 +13,9 @@ jobs:
         with:
           fetch-depth: 0 # git describe needs tags and history for the version
 
+      # No usage statistics keys: test builds would only skew them (release.yml has them).
       - name: Build (tests, lint, package)
         run: scripts/build.sh
-        env:
-          # Usage statistics keys (docs/analytics.md); empty on forks, then statistics are off.
-          GA_MEASUREMENT_ID: ${{ secrets.GA_MEASUREMENT_ID }}
-          GA_API_SECRET: ${{ secrets.GA_API_SECRET }}
 
       - uses: actions/upload-artifact@v4
         with:

@@ -11,7 +11,7 @@ SemVer tags `X.Y.Z`, no `v` prefix. `scripts/build.sh` stamps the version into `
 Both call the same `scripts/build.sh`, so local and CI artifacts are built identically.
 
 Repository secrets `GA_MEASUREMENT_ID` and `GA_API_SECRET` compile in the usage statistics keys
-([analytics.md](analytics.md)); without them (forks, local builds) statistics are off.
+([analytics.md](analytics.md)) of release builds; CI test builds, forks and local builds have statistics off.
 
 ## KDE Store
 store.kde.org runs on Pling (OCS API). Steps:

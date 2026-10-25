@@ -69,7 +69,8 @@ Like any key shipped in a client app, the secret is not really secret: it only a
    `providers`, `to`, `color`; *custom metric* `accounts`.
 6. *Admin* → *Data collection and modification* → *Data retention*: as short as you need (2 months is the minimum).
 7. GitHub repo → *Settings* → *Secrets and variables* → *Actions* → *New repository secret*:
-   `GA_MEASUREMENT_ID` and `GA_API_SECRET`. CI builds then have statistics on (forks and local builds off).
+   `GA_MEASUREMENT_ID` and `GA_API_SECRET`. Release builds (`release.yml`) then have statistics on; CI test builds, forks and local builds
+   have them off.
 
 ### Checking
 - Local build with keys: `GA_MEASUREMENT_ID=G-… GA_API_SECRET=… scripts/build.sh`, then `scripts/install.sh`;
