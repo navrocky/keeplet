@@ -6,13 +6,14 @@ SemVer tags `X.Y.Z`, no `v` prefix. `scripts/build.sh` stamps the version into `
 A release is an annotated `x.y.z` tag on `main` whose message is the version followed by that
 release's changelog bullets. Pushing it runs `release.yml`, which builds the widget and publishes
 `keeplet-x.y.z.plasmoid` and `SHA256SUMS` on the GitHub release, with the tag's message (minus the
-version line) as its release notes.
+version line) as its release notes, and then the same `.plasmoid` on the KDE Store.
 
 ## CI (GitHub Actions)
 - `.github/workflows/ci.yml` — on push to `main` and PRs: `scripts/build.sh`, uploads `dist/` as artifact `keeplet-plasmoid`.
 - `.github/workflows/release.yml` — on an `x.y.z` tag: `scripts/build.sh`, creates the GitHub Release
   (or reuses one made in the GitHub UI) with `keeplet-x.y.z.plasmoid` and `SHA256SUMS`. A build
   whose version isn't exactly the tag (`0.1.0-3-gabc1234`) fails instead of being published.
+  Then uploads the same file to the KDE Store (below).
 
 Both call the same `scripts/build.sh`, so local and CI artifacts are built identically.
 
@@ -68,8 +69,8 @@ Order entries in three groups: new features, then changes to existing behavior, 
    git push origin main <x.y.z>
    ```
 
-6. Watch the `Release` run (`gh run watch`), then publish the `.plasmoid` from the GitHub release on
-   the KDE Store (below).
+6. Watch the `Release` run (`gh run watch`), then check the version on the
+   [store page](https://store.kde.org/p/2379427/).
 
 Before a release that touches sync or sign-in, go through the manual end-to-end checklist in
 [development.md](development.md).
@@ -77,9 +78,23 @@ Before a release that touches sync or sign-in, go through the manual end-to-end 
 A hotfix is the same flow with the next patch version: fix on `main`, then steps 1–6.
 
 ## KDE Store
-store.kde.org runs on Pling (OCS API). Steps:
-1. First release: create the product manually (category *Plasma 6 Extensions → Plasma Widgets*),
-   upload the `.plasmoid` from the GitHub Release.
-2. Automation: to be researched after the first release — whether Pling/OCS allows uploading
-   new files with an API token (`secrets.KDE_STORE_TOKEN`, product id in a repo variable).
-   If there is no reliable API, publishing stays a manual step documented here.
+The widget is product [2379427](https://store.kde.org/p/2379427/) on store.kde.org (Pling/opendesktop),
+category *Plasma 6 Extensions → Plasma Widgets*. Plasma's *Get New Widgets…* lists published
+products of that category that have a file, so the product must stay published.
+
+Only a release publishes there: the last step of `release.yml` runs `scripts/kde-store-upload.sh`, which
+replaces the product's files with `keeplet-x.y.z.plasmoid`, sets the file version and adds (or updates)
+a changelog entry `x.y.z` with the tag's notes. Don't upload releases by hand.
+
+- Pling has no write API (the OCS API is read-only), so the script signs in with e-mail and password —
+  repository secrets `KDE_STORE_USERNAME` and `KDE_STORE_PASSWORD` — and calls the AJAX endpoints of
+  the product's edit page. They are undocumented: if the store changes them the step fails; then
+  fix the script (or, as a stopgap, upload the file from the GitHub release on the edit page).
+- The site is behind a bot check that blocks browser and curl user agents; the script sends its own.
+- If only the store step failed, fix the cause and use *Re-run failed jobs*: the GitHub release step
+  is idempotent.
+- Check the credentials without changing anything:
+  `KDE_STORE_USERNAME=… KDE_STORE_PASSWORD=… scripts/kde-store-upload.sh --dry-run 2379427 dist/keeplet-*.plasmoid`
+  (signs in and reads the edit page).
+- Is it visible to Plasma: `curl 'https://api.kde-look.org/ocs/v1/content/data?search=Keeplet&format=json'`
+  lists the product, and *Add Widgets → Get New Widgets…* finds "Keeplet".
