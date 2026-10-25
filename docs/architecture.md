@@ -22,6 +22,8 @@ Google's Terms of Service.
                           └────────────────▶    NotesCache ─▶ LocalDb (snapshot per account)
  consent notice ───▶ AnalyticsViewModel ──────▶ Analytics ─▶ LocalDb (consent, id) + GA4 (opt-in)
                      (all ViewModels report commands to Analytics.track)
+ update notice  ───▶ UpdateViewModel ─────────▶ UpdateCheck ─▶ LocalDb (latest, dismissed) + core/updates.js (KDE Store OCS)
+  └ UpdateInstaller ─▶ UpdateDialog (org.kde.newstuff: Plasma's Get New Widgets on Keeplet's entry)
 ```
 - Views bind to ViewModel properties and call its commands; they hold no logic.
 - ViewModels never import visual types and never produce user-facing text (errors are codes).
@@ -59,6 +61,7 @@ No native code: stage 0 showed that both `/auth` and `/changes` work from QML XH
 |---|---|
 | account registry | `LocalDb` (`QtQuick.LocalStorage` SQLite under `~/.local/share/plasmashell/QML/OfflineStorage/`), **global** |
 | usage statistics consent, random client id, last heartbeat day | `LocalDb`, namespace `analytics`, **global** ([analytics.md](analytics.md)) |
+| latest version on the KDE Store, last check, dismissed version | `LocalDb`, namespace `updates`, **global** |
 | secrets (master token) | KWallet folder `Keeplet`, key `<providerId>:<accountId>`; without KWallet the same `LocalDb`, **global** |
 | auth token | memory only |
 | notes snapshot (provider state) | `LocalDb`, one JSON row per account, **global** |

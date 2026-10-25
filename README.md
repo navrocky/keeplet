@@ -30,6 +30,11 @@ Then add it: right-click the panel or desktop → *Add Widgets…* → *Keeplet*
 
 Requires KDE Plasma 6.
 
+**Updates:** when a new version is out on the KDE Store, the widget says so; **Update…** opens Plasma's
+*Get New Widgets* dialog on Keeplet, and the new version starts after Plasma is restarted or on the next
+login. Installed from the KDE Store, Keeplet is also updated by *Discover*. The check (once a day, on
+store.kde.org) can be turned off in the widget settings → General → *Updates*.
+
 ## Set up
 Google no longer allows third-party apps to log in with a password, so you sign in once in
 your browser and hand Keeplet a one-time token:
@@ -84,7 +89,8 @@ such an account deletes its notes; there is no backup or export yet.
 _Creating and renaming labels, and reordering checklist items, are not available yet._
 
 ## Privacy
-Keeplet talks only to the services of your accounts. Optionally, and only if you agree when the widget asks,
+Keeplet talks only to the services of your accounts and, once a day, to store.kde.org to see if a new
+version is out (can be turned off). Optionally, and only if you agree when the widget asks,
 it sends anonymous usage statistics (which features are used, error codes, widget version and language;
 never note contents, labels or account details) to Google Analytics. You can turn it off in the widget
 settings → General → *Statistics*. Details: [docs/analytics.md](docs/analytics.md).

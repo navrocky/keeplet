@@ -92,6 +92,9 @@ sends the form back with its current values (title, description, license, tags, 
 version changed, then reads the page again and fails if the version didn't stick or any other field
 changed. It needs `python3` to read the form.
 
+That field is what running widgets compare their version with: once it is set, users see the
+"Keeplet x.y.z is out" notice within a day (see the update notes in [plasmoid.md](plasmoid.md)).
+
 "Archived" means the file's *compatible* checkbox on the edit page is cleared: the store's OCS API,
 which Get New Widgets reads, lists only compatible files, so Plasma offers just the latest version,
 while the older ones stay downloadable on the store page. Nothing is deleted, and the new file is

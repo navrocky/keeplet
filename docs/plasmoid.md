@@ -5,14 +5,14 @@ package/
 ├── metadata.json                  KPackage metadata; Version is stamped by the build
 └── contents/
     ├── code/                      Model: pure JS (.pragma library), no UI
-    │   ├── core/                  notes.js, workspace.js, errors.js, util.js, migration.js
+    │   ├── core/                  notes.js, workspace.js, errors.js, util.js, migration.js, updates.js
     │   └── providers/             contract.js, registry.js, fake.js, keep/{index,gauth,keepapi,nodes}.js
     ├── ui/
     │   ├── main.qml               PlasmoidItem: wires services and ViewModels, picks the View
-    │   ├── viewmodel/             AccountsViewModel, NotesViewModel, NoteEditorViewModel (QtObject, no visuals)
+    │   ├── viewmodel/             AccountsViewModel, NotesViewModel, NoteEditorViewModel, UpdateViewModel (no visuals)
     │   ├── views/                 SignInView, NotesRoot (navigation), NotesScreen, LabelRail, NoteScreen (editor),
     │   │                          NoteCard, ColorPicker, keepColors.js (layout + bindings)
-    │   ├── services/              LocalDb, SecretStore, AccountsService, NotesCache, BrowserSignIn (platform APIs)
+    │   ├── services/              LocalDb, SecretStore, AccountsService, NotesCache, BrowserSignIn, UpdateCheck
     │   └── configGeneral.qml      settings page
     └── config/                    main.xml (KConfigXT schema), config.qml (config pages)
 ```
@@ -99,6 +99,15 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   `LinkPreviewPage.qml`, the second (and only other) file importing `QtWebEngine`: off-the-record profile, muted,
   no new windows, `zoomFactor` 0.5. Without QtWebEngine the component does not load and previews are off.
   Setting: `linkPreviews` (General, default on) → `NotesViewModel.linkPreviews` → `LinkPreview.active`.
+- New versions: `UpdateCheck` reads the product's *Version* on the KDE Store (`core/updates.js`, OCS
+  `content/data/2379427`) at most once a day for all instances (a failed check is retried on the next 3-hourly
+  poll); `UpdateViewModel.available` when it is newer than `Plasmoid.metaData.version` and not dismissed. Local
+  builds (`0.0.0-dev…`, `x.y.z-N-gSHA`) never see the notice. The notice in `NotesScreen` offers **Update…**:
+  `UpdateInstaller` loads `UpdateDialog.qml`, the only file importing `org.kde.newstuff`, a `NewStuff.Dialog` with
+  `plasmoids.knsrc` opened by `showEntryDetails("api.kde-look.org", "2379427")`. KNewStuff installs the package
+  through KPackage and records it, so Discover updates it later. Without the module the store page opens instead.
+  The running plasmashell keeps the old QML: the notice then says the new version starts after a Plasma restart.
+  Setting: `checkUpdates` (General, default on) → `UpdateCheck.enabled`.
 
 ## List interactions
 - Pointer handling is on the **list**, not on the cards: a `TapHandler` (open), a `HoverHandler` (hand cursor only over a link), a right-button `TapHandler`
