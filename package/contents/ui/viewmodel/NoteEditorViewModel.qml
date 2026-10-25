@@ -7,11 +7,12 @@ import "../../code/core/checklist.js" as Checklist
 // Closing the note resets the history.
 //
 // `notes` is the NotesViewModel (needs currentNoteKey, noteByKey, saveNote, removeNote, canWrite,
-// capabilities, closeNote, labelsOf, writableAccounts).
+// capabilities, closeNote, labelsOf, writableAccounts). `analytics` ({track(name, params)}) is optional.
 QtObject {
     id: vm
 
     required property var notes
+    property var analytics: notes.analytics || null
 
     // Pause after the last change before it is saved (ms) and the window in which typing counts as one
     // undo step; both are overridable for tests.
@@ -200,6 +201,7 @@ QtObject {
     }
     // Removes every checked item (with the sub-items of a removed item).
     function clearDone() {
+        _track("checklist_clear_done")
         _change("", function (n) {
             var parentGone = false
             n.items = n.items.filter(function (it) {
@@ -243,6 +245,7 @@ QtObject {
     function convertToList() {
         if (!canConvert || note.type === "LIST")
             return
+        _track("note_convert", { to: "LIST" })
         _change("", function (n) {
             var items = Checklist.fromText(n.text, nestedItems)
             n.type = "LIST"
@@ -254,6 +257,7 @@ QtObject {
     function convertToText() {
         if (!canConvert || note.type !== "LIST")
             return
+        _track("note_convert", { to: "NOTE" })
         _change("", function (n) {
             n.type = "NOTE"
             n.text = Checklist.toText(n.items, false)
@@ -269,13 +273,22 @@ QtObject {
 
     function undo() {
         var previous = History.undo(_history, _clone(note))
-        if (previous)
+        if (previous) {
+            _track("editor_undo")
             _adopt(previous)
+        }
     }
     function redo() {
         var next = History.redo(_history, _clone(note))
-        if (next)
+        if (next) {
+            _track("editor_redo")
             _adopt(next)
+        }
+    }
+
+    function _track(name, params) {
+        if (analytics)
+            analytics.track(name, params)
     }
 
     // Moves the open note to the trash and closes it.

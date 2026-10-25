@@ -11,12 +11,14 @@ import "../../code/providers/registry.js" as DefaultRegistry
 //   browser  - optional {available, signIn(request) -> Promise<{token, email}>}: a sign-in window
 //              (services/BrowserSignIn.qml); rejects with {kind: "cancelled"} when the user closes it
 //   configuration - per-instance config; only `accountKeys` (list, empty = all accounts) is read
+//   analytics - optional {track(name, params)}: anonymous usage statistics
 QtObject {
     id: vm
 
     required property var service
     property var registry: DefaultRegistry
     property var browser: null
+    property var analytics: null
     property var configuration: ({ accountKeys: [] })
     // Test hook: (account) => options passed to provider.createSession().
     property var sessionOptions: null
@@ -111,7 +113,7 @@ QtObject {
     }
 
     function signIn(providerId, creds) {
-        _signIn(providerId, function () { return Promise.resolve(creds) })
+        _signIn(providerId, "password", function () { return Promise.resolve(creds) })
     }
 
     // Signs in through the provider's browser window. The user's e-mail is not asked: the provider learns it.
@@ -120,7 +122,7 @@ QtObject {
         if (!provider || !provider.browserSignIn || !browserAvailable)
             return
         var request = provider.browserSignIn
-        _signIn(providerId, function () {
+        _signIn(providerId, "browser", function () {
             return browser.signIn(request).then(function (r) {
                 var creds = { email: r.email || "" }
                 creds[request.credentialKey] = r.token
@@ -129,7 +131,7 @@ QtObject {
         })
     }
 
-    function _signIn(providerId, getCreds) {
+    function _signIn(providerId, method, getCreds) {
         var provider = registry.get(providerId)
         if (!provider || busy)
             return
@@ -150,6 +152,7 @@ QtObject {
             }).then(function () {
                 signInRequested = false
                 signInTarget = null
+                _track("sign_in", { provider: providerId, method: method })
                 return reload()
             })
         }).catch(function (e) {
@@ -162,6 +165,7 @@ QtObject {
                 error = "failed"
                 errorDetail = String(e)
             }
+            _track("sign_in_error", { provider: providerId, kind: error })
         }).then(function () {
             busy = false
         })
@@ -169,7 +173,13 @@ QtObject {
 
     // Forgets an account everywhere (registry, secret, cache).
     function remove(accountKey) {
+        _track("account_remove", { provider: accountKey.split(":")[0] })
         return service.remove(accountKey).then(function () { return reload() })
+    }
+
+    function _track(name, params) {
+        if (analytics)
+            analytics.track(name, params)
     }
 
     // `target` ({providerId, accountId}) signs an existing account in again; without it a new account is added.

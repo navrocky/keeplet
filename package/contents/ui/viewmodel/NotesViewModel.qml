@@ -6,13 +6,14 @@ import "../../code/core/checklist.js" as Checklist
 // Owns per-account provider state, exposes the merged and filtered notes and the commands.
 // No visual items and no user-facing strings: errors are codes (View translates them).
 //
-// Dependencies: `accounts` (needs `sessions`, see AccountsViewModel) and optional `cache`
-// ({load(key), save(key, json), remove(key)}).
+// Dependencies: `accounts` (needs `sessions`, see AccountsViewModel), optional `cache`
+// ({load(key), save(key, json), remove(key)}) and optional `analytics` ({track(name, params)}).
 QtObject {
     id: vm
 
     required property var accounts
     property var cache: null
+    property var analytics: null
     property int syncInterval: 5 // minutes
     // Pause after the last edit before queued edits are sent (ms); tests shorten it.
     property int writeDelay: 1500
@@ -75,6 +76,12 @@ QtObject {
     property var _accs: ({})          // accountKey -> {account, provider, session, state, syncing, lastSync, error}
     property var _all: []
     readonly property var _sessions: accounts.sessions
+    property bool _searchTracked: false   // one "search" event per non-empty search
+
+    function _track(name, params) {
+        if (analytics)
+            analytics.track(name, params)
+    }
 
     // The cache snapshot is serialized and written to SQLite synchronously (UI thread), so it is done once after
     // a quiet period instead of after every edit. Edits are queued in the state, which is what the snapshot holds:
@@ -186,7 +193,11 @@ QtObject {
         return true
     }
 
-    function select(key) { selected = key }
+    function select(key) {
+        if (key !== selected)
+            _track("group_open", { kind: key.split(":")[0] })
+        selected = key
+    }
     function selectAccount(accountKey) { accountFilter = accountKey }
     function openNote(noteKey) {
         if (noteKey !== draftKey) {
@@ -241,6 +252,7 @@ QtObject {
         if (!made)
             return null
         _afterWrite(a)
+        _track("label_create", { provider: a.provider.id })
         return { id: made.id, name: made.name, key: Workspace.labelKey(accountKey, made.id) }
     }
 
@@ -257,6 +269,7 @@ QtObject {
         if (!a.session.renameLabel(a.state, l.id, name))
             return false
         _afterWrite(a)
+        _track("label_rename", { provider: a.provider.id })
         return true
     }
 
@@ -269,6 +282,7 @@ QtObject {
         if (!a.session.deleteLabel(a.state, l.id))
             return false
         _afterWrite(a)
+        _track("label_delete", { provider: a.provider.id })
         return true
     }
 
@@ -326,6 +340,7 @@ QtObject {
         _draftTarget = ""
         currentNoteKey = ""      // so that opening a second draft is a change the View and editor see
         currentNoteKey = draftKey
+        _track("note_create", { type: draft.type })
         return true
     }
 
@@ -360,23 +375,37 @@ QtObject {
         if (!note || !canWrite(note.accountKey))
             return false
         _remember("trashed", note)
+        _track("note_trash")
         return updateNote(noteKey, { trashed: true })
     }
-    function restoreNote(noteKey) { return updateNote(noteKey, { trashed: false }) }
+    function restoreNote(noteKey) {
+        _track("note_restore")
+        return updateNote(noteKey, { trashed: false })
+    }
     function archiveNote(noteKey, archived) {
         var note = noteByKey(noteKey)
         if (!note || !canWrite(note.accountKey))
             return false
         _remember(archived ? "archived" : "unarchived", note)
+        _track("note_archive", { archived: !!archived })
         return updateNote(noteKey, { archived: !!archived })
     }
-    function setPinned(noteKey, pinned) { return updateNote(noteKey, { pinned: !!pinned }) }
-    function setColor(noteKey, color) { return updateNote(noteKey, { color: color }) }
+    function setPinned(noteKey, pinned) {
+        _track("note_pin", { pinned: !!pinned })
+        return updateNote(noteKey, { pinned: !!pinned })
+    }
+    function setColor(noteKey, color) {
+        _track("note_color", { color: color })
+        return updateNote(noteKey, { color: color })
+    }
 
     // Deletes a note for good, or every note in the trash of the accounts in view.
     function deleteForever(noteKey) {
         var note = noteByKey(noteKey)
-        return !!note && removeNote(note)
+        if (!note || !removeNote(note))
+            return false
+        _track("note_delete")
+        return true
     }
     function emptyTrash() {
         var count = 0
@@ -386,6 +415,8 @@ QtObject {
             if (removeNote(n))
                 count++
         })
+        if (count > 0)
+            _track("trash_empty")
         return count
     }
 
@@ -530,6 +561,7 @@ QtObject {
         if (!canMoveTo(noteKey, index))
             return false
         var note = noteByKey(noteKey)
+        _track("note_move")
         if (scopeAccountKey === "")
             return _moveInMixed(noteKey, index)
         var plan = _orderPlan(note, _without(noteKey), index)
@@ -628,8 +660,12 @@ QtObject {
         if (plan.kind === "trash")
             return trashNote(noteKey)
         _remember(plan.kind, plan.note, plan.name)
+        _track("note_drop_label")
         return updateNote(noteKey, { labels: plan.labels })
     }
+
+    // The View has shown a preview of a web link.
+    function linkPreviewShown() { _track("link_preview") }
 
     // A note as text for the clipboard ("" for an unknown key): title and body, checklists with "- [x]" marks.
     function noteText(noteKey) {
@@ -685,6 +721,7 @@ QtObject {
         if (!a || a.syncing || a.broken)
             return
         a.syncing = true
+        var lastKind = a.error ? a.error.kind : ""
         a.error = null
         _updateStatus()
         a.session.sync(a.state, []).then(function (state) {
@@ -694,6 +731,8 @@ QtObject {
             _cacheLater(key)
         }).catch(function (e) {
             a.error = _fail(e)
+            if (a.error.kind !== lastKind)   // reported once, not on every retry while offline
+                _track("sync_error", { provider: a.provider.id, kind: a.error.kind })
         }).then(function () {
             a.syncing = false
             if (_accs[key] === a) { // the account may have been removed meanwhile
@@ -932,6 +971,7 @@ QtObject {
             console.warn("Keeplet: stored data of", key, "is unreadable:", e)
             a.broken = true
             a.error = { kind: "storage", detail: "" }
+            _track("sync_error", { provider: a.provider.id, kind: "storage" })
             _updateStatus()
         }
         loading.then(function (json) {
@@ -968,7 +1008,13 @@ QtObject {
     }
 
     on_SessionsChanged: _adoptSessions()
-    onSearchTextChanged: _applyFilter()
+    onSearchTextChanged: {
+        var searching = searchText.trim() !== ""
+        if (searching && !_searchTracked)
+            _track("search")
+        _searchTracked = searching
+        _applyFilter()
+    }
     onSelectedChanged: _applyFilter()
     onAccountFilterChanged: _applyFilter()
     onCurrentNoteKeyChanged: _syncCurrentNote()

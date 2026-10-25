@@ -106,6 +106,18 @@ TestCase {
         verify(!c.vm.busy)
     }
 
+    function test_signInIsReportedToAnalytics() {
+        var events = []
+        var c = make()
+        c.vm.analytics = { track: function (name, params) { events.push(name + ":" + JSON.stringify(params)) } }
+        c.vm.signIn("fake", { name: "bad" })
+        tryVerify(function () { return !c.vm.busy && c.vm.error !== "" })
+        c.vm.signIn("fake", { name: "new" })
+        tryVerify(function () { return c.vm.sessions.length === 1 })
+        compare(events.join(" "), 'sign_in_error:{"provider":"fake","kind":"badCredentials"} '
+                + 'sign_in:{"provider":"fake","method":"password"}')
+    }
+
     function test_signInHidesFormAfterSuccess() {
         var c = make([acc("a")], { "fake:a": "s" })
         tryVerify(function () { return c.vm.signedIn })

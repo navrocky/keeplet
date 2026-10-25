@@ -153,6 +153,42 @@ TestCase {
         tryVerify(function () { return e.vm.error === "auth" })
     }
 
+    // Records analytics events (stand-in for services/Analytics.qml).
+    Component {
+        id: analyticsComp
+        QtObject {
+            property var events: []
+            function track(name, params) { events.push({ name: name, params: params || {} }) }
+        }
+    }
+
+    function test_analyticsEventsCarryNoContent() {
+        var c = make([entry(keepAcc, { data: personalData() })])
+        var a = analyticsComp.createObject(tc)
+        c.vm.analytics = a
+        tryVerify(function () { return c.vm.loaded })
+        verify(c.vm.openNewNote("LIST"))
+        c.vm.searchText = "ban"
+        c.vm.searchText = "bana"          // one event per search, not per keystroke
+        c.vm.select("label:fake:me@x|L1")
+        compare(a.events.map(function (e) { return e.name }).join(), "note_create,search,group_open")
+        compare(a.events[0].params.type, "LIST")
+        compare(a.events[2].params.kind, "label")   // the group kind, never the label
+    }
+
+    function test_syncErrorReportedOnceWithoutDetail() {
+        var c = make([entry(keepAcc, { fail: new Errors.ProviderError("auth", "BadAuthentication") })])
+        var a = analyticsComp.createObject(tc)
+        c.vm.analytics = a
+        c.vm.refresh()
+        tryVerify(function () { return c.vm.error === "auth" && !c.vm.syncing })
+        c.vm.refresh()
+        tryVerify(function () { return !c.vm.syncing })
+        var errs = a.events.filter(function (e) { return e.name === "sync_error" })
+        compare(errs.length, 1)
+        compare(JSON.stringify(errs[0].params), JSON.stringify({ provider: "fake", kind: "auth" }))
+    }
+
     function test_removingAccountClearsNotesAndCache() {
         var c = make([entry(keepAcc, { data: personalData() })])
         tryVerify(function () { return c.vm.loaded })
