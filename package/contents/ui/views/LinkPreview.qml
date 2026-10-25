@@ -45,6 +45,8 @@ QQC2.Popup {
         close()
     }
 
+    signal shown()
+
     function showPending() {
         var host = parent
         if (!host || !pendingItem || pending === "")
@@ -66,6 +68,7 @@ QQC2.Popup {
         url = pending
         loaded = true
         open()
+        shown()
     }
 
     Timer { id: showTimer; interval: 700; onTriggered: popup.showPending() }

@@ -21,19 +21,42 @@ PlasmoidItem {
     AccountsService { id: accountsService; db: localDb }
     NotesCache { id: notesCache; db: localDb }
     BrowserSignIn { id: browserSignIn }
+    Analytics { id: analytics; db: localDb }
 
     // ViewModels.
     AccountsViewModel {
         id: accountsVm
         service: accountsService
         browser: browserSignIn
+        analytics: analytics
         configuration: Plasmoid.configuration
+    }
+
+    AnalyticsViewModel {
+        id: analyticsVm
+        service: analytics
+    }
+
+    // Daily "app_start" (sent at most once a day by all instances together, only with consent).
+    readonly property bool heartbeatDue: accountsVm.ready && analytics.enabled
+    onHeartbeatDueChanged: {
+        if (!heartbeatDue)
+            return
+        var providers = {}
+        accountsVm.accounts.forEach(function (a) { providers[a.providerId] = true })
+        analytics.heartbeat({
+            widget_version: Plasmoid.metaData.version,
+            locale: Qt.locale().name,
+            providers: Object.keys(providers).sort().join(","),
+            accounts: accountsVm.accounts.length
+        })
     }
 
     NotesViewModel {
         id: notesVm
         accounts: accountsVm
         cache: notesCache
+        analytics: analytics
         syncInterval: Plasmoid.configuration.syncInterval
         railCollapsed: Plasmoid.configuration.railCollapsed
         // The View toggles the property directly; persist it per widget instance.
@@ -106,7 +129,7 @@ PlasmoidItem {
 
         Component {
             id: notesRoot
-            NotesRoot { vm: notesVm; accountsVm: accountsVm; editor: editorVm }
+            NotesRoot { vm: notesVm; accountsVm: accountsVm; editor: editorVm; analyticsVm: analyticsVm }
         }
     }
 }

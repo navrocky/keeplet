@@ -15,6 +15,7 @@ Item {
 
     required property var vm          // NotesViewModel
     required property var accountsVm  // AccountsViewModel
+    property var analyticsVm: null    // AnalyticsViewModel (asks for consent to usage statistics)
     property var linkPreview: null    // LinkPreview, shared by the screens
 
     // One gap everywhere: between the toolbar and the list, and between the rail and the list.
@@ -344,6 +345,31 @@ Item {
                     }
                 }
             }
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            type: Kirigami.MessageType.Information
+            visible: !!view.analyticsVm && view.analyticsVm.askConsent
+            showCloseButton: false
+            text: i18n("Help improve Keeplet by sending anonymous usage statistics? Note contents and account details are never sent. You can change this in the settings.")
+            actions: [
+                Kirigami.Action {
+                    text: i18n("Allow")
+                    icon.name: "dialog-ok"
+                    onTriggered: view.analyticsVm.allow()
+                },
+                Kirigami.Action {
+                    text: i18n("No, thanks")
+                    icon.name: "dialog-cancel"
+                    onTriggered: view.analyticsVm.decline()
+                },
+                Kirigami.Action {
+                    text: i18n("What is sent")
+                    icon.name: "help-about"
+                    onTriggered: Qt.openUrlExternally("https://github.com/navrocky/keeplet/blob/main/docs/analytics.md")
+                }
+            ]
         }
 
         Repeater {

@@ -13,10 +13,12 @@ KCM.SimpleKCM {
     LocalDb { id: localDb }
     AccountsService { id: accountsService; db: localDb }
     BrowserSignIn { id: browserSignIn }
+    Analytics { id: analytics; db: localDb }
     AccountsViewModel {
         id: accountsVm
         service: accountsService
         browser: browserSignIn
+        analytics: analytics
     }
 
     // A centered column of a readable width, like the "About" page, instead of stretching over the dialog.
