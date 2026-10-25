@@ -16,6 +16,7 @@ Item {
     required property var vm          // NotesViewModel
     required property var accountsVm  // AccountsViewModel
     property var analyticsVm: null    // AnalyticsViewModel (asks for consent to usage statistics)
+    property var updateVm: null       // UpdateViewModel (a newer version is out)
     property var linkPreview: null    // LinkPreview, shared by the screens
 
     // One gap everywhere: between the toolbar and the list, and between the rail and the list.
@@ -370,6 +371,50 @@ Item {
                     onTriggered: Qt.openUrlExternally("https://github.com/navrocky/keeplet/blob/main/docs/analytics.md")
                 }
             ]
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            type: view.updateVm && view.updateVm.installed ? Kirigami.MessageType.Positive
+                                                           : Kirigami.MessageType.Information
+            visible: !!view.updateVm && view.updateVm.available
+            // Hidden through the ViewModel, not the close button: that would break the visible binding.
+            showCloseButton: false
+            text: !view.updateVm ? ""
+                  : view.updateVm.installed
+                    ? i18n("Keeplet %1 is installed. It starts after Plasma is restarted or on the next login.", view.updateVm.latestVersion)
+                    : i18n("Keeplet %1 is out.", view.updateVm.latestVersion)
+            actions: view.updateVm && view.updateVm.installed ? [hideAction]
+                                                              : [updateAction, whatsNewAction, laterAction]
+
+            Kirigami.Action {
+                id: updateAction
+                text: i18n("Update…")
+                icon.name: "update-none"
+                onTriggered: updateInstaller.open()
+            }
+            Kirigami.Action {
+                id: whatsNewAction
+                text: i18n("What's new")
+                icon.name: "help-about"
+                onTriggered: Qt.openUrlExternally(view.updateVm.storeUrl)
+            }
+            Kirigami.Action {
+                id: laterAction
+                text: i18n("Not now")
+                icon.name: "dialog-cancel"
+                onTriggered: view.updateVm.dismiss()
+            }
+            Kirigami.Action {
+                id: hideAction
+                text: i18n("Hide")
+                icon.name: "dialog-close"
+                onTriggered: view.updateVm.dismiss()
+            }
+            UpdateInstaller {
+                id: updateInstaller
+                vm: view.updateVm
+            }
         }
 
         Repeater {

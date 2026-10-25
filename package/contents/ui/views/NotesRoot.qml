@@ -11,6 +11,7 @@ QQC2.StackView {
     required property var accountsVm  // AccountsViewModel
     required property var editor      // NoteEditorViewModel
     property var analyticsVm: null    // AnalyticsViewModel
+    property var updateVm: null       // UpdateViewModel
 
     readonly property bool noteOpen: vm.currentNoteKey !== ""
     readonly property int duration: Kirigami.Units.longDuration
@@ -36,7 +37,7 @@ QQC2.StackView {
 
     Component {
         id: listScreen
-        NotesScreen { vm: stack.vm; accountsVm: stack.accountsVm; analyticsVm: stack.analyticsVm; linkPreview: sharedPreview }
+        NotesScreen { vm: stack.vm; accountsVm: stack.accountsVm; analyticsVm: stack.analyticsVm; updateVm: stack.updateVm; linkPreview: sharedPreview }
     }
 
     Component {

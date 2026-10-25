@@ -22,6 +22,7 @@ PlasmoidItem {
     NotesCache { id: notesCache; db: localDb }
     BrowserSignIn { id: browserSignIn }
     Analytics { id: analytics; db: localDb }
+    UpdateCheck { id: updateCheck; db: localDb; enabled: Plasmoid.configuration.checkUpdates }
 
     // ViewModels.
     AccountsViewModel {
@@ -37,9 +38,16 @@ PlasmoidItem {
         service: analytics
     }
 
+    UpdateViewModel {
+        id: updateVm
+        service: updateCheck
+        currentVersion: Plasmoid.metaData.version
+    }
+
     // For the screens created from Components (see notesRoot below).
     readonly property var accountsModel: accountsVm
     readonly property var analyticsModel: analyticsVm
+    readonly property var updateModel: updateVm
 
     // Daily "app_start" (sent at most once a day by all instances together, only with consent).
     readonly property bool heartbeatDue: accountsVm.ready && analytics.enabled
@@ -135,7 +143,7 @@ PlasmoidItem {
             id: notesRoot
             // Inside a Component the object's own property wins over an id of the outer file, so
             // `accountsVm: accountsVm` would bind the property to itself: pass them through root.
-            NotesRoot { vm: notesVm; accountsVm: root.accountsModel; editor: editorVm; analyticsVm: root.analyticsModel }
+            NotesRoot { vm: notesVm; accountsVm: root.accountsModel; editor: editorVm; analyticsVm: root.analyticsModel; updateVm: root.updateModel }
         }
     }
 }
