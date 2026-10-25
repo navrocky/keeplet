@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Publishes a .plasmoid on the KDE Store (store.kde.org = Pling/opendesktop): uploads it with its
-# version, archives the product's older files and adds or updates the changelog entry for the version.
+# version, archives the older files, adds or updates the changelog entry for the version and sets
+# the product's Version field.
 # Run by .github/workflows/release.yml on a release tag; locally use only --dry-run (docs/release.md).
 #
 # Pling has no write API, so this drives the same AJAX endpoints as the product edit page, signed
@@ -24,7 +25,7 @@ notes="${3:-}"
 : "${KDE_STORE_USERNAME:?KDE_STORE_USERNAME is not set}" "${KDE_STORE_PASSWORD:?KDE_STORE_PASSWORD is not set}"
 [[ "$product" =~ ^[0-9]+$ ]] || { echo "bad product id: $product" >&2; exit 1; }
 [[ -f "$file" ]] || { echo "no such file: $file" >&2; exit 1; }
-for tool in curl jq unzip; do
+for tool in curl jq unzip python3; do
     command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 1; }
 done
 
@@ -104,6 +105,72 @@ for var in add_uri update_uri client_id file_uri owner_id; do
     [[ -n "${!var}" ]] || { echo "the edit page has no $var: the store's page changed?" >&2; exit 1; }
 done
 
+# The edit page's product form (#add-product-form) as a browser would submit it: its fields in page
+# order with their current values (checked boxes, selected options, textarea text), files left out.
+# <nul|lines>: NUL-separated name=value pairs, or one name=<JSON string> per line for comparing.
+product_form() {
+    python3 -I -c '
+import html.parser, json, sys
+
+class Form(html.parser.HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.inside, self.fields, self.text, self.select = False, [], None, None
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "form":
+            self.inside = a.get("id") == "add-product-form"
+        if not self.inside or "disabled" in a:
+            return
+        name = a.get("name")
+        if tag == "input" and name:
+            kind = (a.get("type") or "text").lower()
+            if kind in ("checkbox", "radio"):
+                if "checked" in a:
+                    self.fields.append((name, a.get("value") or "on"))
+            elif kind not in ("file", "submit", "button", "image", "reset"):
+                self.fields.append((name, a.get("value") or ""))
+        elif tag == "textarea" and name:
+            self.text = (name, [])
+        elif tag == "select" and name:
+            self.select = (name, "multiple" in a, [])
+        elif tag == "option" and self.select:
+            self.select[2].append([a.get("value"), "selected" in a, []])
+
+    def handle_data(self, data):
+        if self.text:
+            self.text[1].append(data)
+        elif self.select and self.select[2]:
+            self.select[2][-1][2].append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "form":
+            self.inside = False
+        elif tag == "textarea" and self.text:
+            name, parts = self.text
+            text = "".join(parts)
+            self.fields.append((name, text[1:] if text.startswith("\n") else text))
+            self.text = None
+        elif tag == "select" and self.select:
+            name, multiple, options = self.select
+            values = [v if v is not None else "".join(t).strip() for v, _, t in options]
+            chosen = [v for v, (_, sel, _) in zip(values, options) if sel]
+            if not chosen and not multiple and values:
+                chosen = values[:1]
+            self.fields += [(name, v) for v in chosen]
+            self.select = None
+
+form = Form()
+form.feed(sys.stdin.read())
+for name, value in form.fields:
+    if sys.argv[1] == "nul":
+        sys.stdout.write(name + "=" + value + "\0")
+    else:
+        print(name + "=" + json.dumps(value))
+' "$1"
+}
+
 if (( dry_run )); then
     echo "== dry run: signed in, upload endpoints found, nothing changed"
     exit 0
@@ -152,6 +219,35 @@ if [[ -n "$notes" && -s "$notes" ]]; then
     check_status "saving the changelog" success "$(post_ajax --data-urlencode "title=$version" \
         --data-urlencode "text@$notes" --data-urlencode "update_id=$update_id" \
         "$BASE_URL/p/$product/saveupdateajax")"
+fi
+
+echo "== product version $version"
+# The product's own Version field (shown on the store page) is not set by the file upload: it is a
+# field of the edit page's main form, which saves only as a whole. So the form goes back with its
+# current values (what a browser would send) and only the version changed, then is read back.
+# Read as is, not with get_page: it joins the lines, and the description's would be lost.
+raw_page() { curl -sS --fail-with-body -A "$USER_AGENT" -L --retry 3 -b "$jar" -c "$jar" "$edit_url"; }
+page="$(raw_page)"
+before="$(product_form lines <<<"$page")"
+[[ -n "$before" ]] || { echo "the edit page has no product form: the store's page changed?" >&2; exit 1; }
+old_version="$(grep -m1 '^version=' <<<"$before" | cut -d= -f2- | jq -r . || true)"
+if [[ "$old_version" == "$version" ]]; then
+    echo "already $version"
+else
+    form=()
+    while IFS= read -r -d '' field; do
+        [[ "$field" == version=* ]] && field="version=$version"
+        form+=(--form-string "$field")
+    done < <(product_form nul <<<"$page")
+    get_page "${form[@]}" -H "Referer: $edit_url" "$edit_url" >/dev/null
+    after="$(raw_page | product_form lines)"
+    [[ "$(grep -m1 '^version=' <<<"$after" | cut -d= -f2- | jq -r .)" == "$version" ]] \
+        || { echo "saving the product version failed: the edit page still shows another one" >&2; exit 1; }
+    # Never prints the values: only the names of fields the round trip changed.
+    changed="$(diff <(grep -v '^version=' <<<"$before") <(grep -v '^version=' <<<"$after") \
+        | grep -oP '^[<>] \K[^=]+' | sort -u | paste -sd, || true)"
+    [[ -z "$changed" ]] || { echo "saving the product version also changed: $changed; check the edit page" >&2; exit 1; }
+    echo "$old_version -> $version"
 fi
 
 echo "== published $version on https://store.kde.org/p/$product/"
