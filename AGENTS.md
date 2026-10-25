@@ -29,6 +29,13 @@ It uses Google Keep's private mobile API (protocol ported from gkeepapi/gpsoauth
 - `scripts/install.sh [file]` / `scripts/install.sh --remove` — install into the current user's Plasma.
 - `scripts/dev.sh` — run `package/` in a window without building.
 - `QT_QPA_PLATFORM=offscreen qmltestrunner6 -input tests` — fast local tests.
+- `scripts/update-changelog.sh` — seed `CHANGELOG.md` with the commits since the last release.
+
+## Changelog and releases
+- For "tidy up CHANGELOG", "make a release" or "make a hotfix", follow [docs/release.md](docs/release.md):
+  show the tidied section and version and wait for approval before committing, tagging or pushing.
+- Versions come from `x.y.z` git tags (no `v`); pushing one publishes a release. Don't create or push
+  tags unless asked.
 
 ## Docs
 - [docs/architecture.md](docs/architecture.md) — components and data flow
@@ -38,5 +45,5 @@ It uses Google Keep's private mobile API (protocol ported from gkeepapi/gpsoauth
 - [docs/analytics.md](docs/analytics.md) — opt-in usage statistics (GA4), events, keys
 - [docs/plasmoid.md](docs/plasmoid.md) — `package/` layout, QML conventions, Plasma gotchas
 - [docs/development.md](docs/development.md) — dev setup, install, testing, debugging
-- [docs/release.md](docs/release.md) — versioning, CI, publishing
+- [docs/release.md](docs/release.md) — versioning, CI, changelog, making a release
 - [docs/decisions/](docs/decisions/) — architecture decision records
