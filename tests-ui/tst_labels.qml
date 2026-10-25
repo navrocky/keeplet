@@ -48,6 +48,14 @@ Item {
             }
             return null
         }
+        // Screens are created from Components inside NotesRoot, where `x: x` would bind a property to itself.
+        function test_screenGetsTheSharedPreviewAndAccounts() {
+            var screen = find(root, function (i) { return i.hasOwnProperty("linkPreview") && i.hasOwnProperty("accountsVm") })
+            verify(screen)
+            verify(screen.linkPreview !== null && screen.linkPreview !== undefined)
+            compare(screen.accountsVm, accounts)
+        }
+
         function rail() {
             return find(root, function (i) { return i.hasOwnProperty("collapsed") && i.hasOwnProperty("multiAccount") })
         }

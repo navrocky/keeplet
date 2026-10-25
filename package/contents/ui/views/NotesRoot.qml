@@ -18,15 +18,16 @@ QQC2.StackView {
     initialItem: listScreen
     clip: true
 
-    // The preview of web links, shared by both screens.
+    // The preview of web links, shared by both screens. Not named linkPreview: inside the Components below
+    // `linkPreview: linkPreview` would bind the screens' own property to itself.
     LinkPreview {
-        id: linkPreview
+        id: sharedPreview
         active: stack.vm.linkPreviews
         onShown: stack.vm.linkPreviewShown()
     }
 
     onNoteOpenChanged: {
-        linkPreview.dismiss()
+        sharedPreview.dismiss()
         if (noteOpen)
             push(noteScreen)
         else if (depth > 1)
@@ -35,12 +36,12 @@ QQC2.StackView {
 
     Component {
         id: listScreen
-        NotesScreen { vm: stack.vm; accountsVm: stack.accountsVm; analyticsVm: stack.analyticsVm; linkPreview: linkPreview }
+        NotesScreen { vm: stack.vm; accountsVm: stack.accountsVm; analyticsVm: stack.analyticsVm; linkPreview: sharedPreview }
     }
 
     Component {
         id: noteScreen
-        NoteScreen { vm: stack.vm; editor: stack.editor; linkPreview: linkPreview }
+        NoteScreen { vm: stack.vm; editor: stack.editor; linkPreview: sharedPreview }
     }
 
     // Forward: new screen slides in from the right while the list fades away; Back: the reverse.
