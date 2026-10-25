@@ -37,6 +37,10 @@ PlasmoidItem {
         service: analytics
     }
 
+    // For the screens created from Components (see notesRoot below).
+    readonly property var accountsModel: accountsVm
+    readonly property var analyticsModel: analyticsVm
+
     // Daily "app_start" (sent at most once a day by all instances together, only with consent).
     readonly property bool heartbeatDue: accountsVm.ready && analytics.enabled
     onHeartbeatDueChanged: {
@@ -129,7 +133,9 @@ PlasmoidItem {
 
         Component {
             id: notesRoot
-            NotesRoot { vm: notesVm; accountsVm: accountsVm; editor: editorVm; analyticsVm: analyticsVm }
+            // Inside a Component the object's own property wins over an id of the outer file, so
+            // `accountsVm: accountsVm` would bind the property to itself: pass them through root.
+            NotesRoot { vm: notesVm; accountsVm: root.accountsModel; editor: editorVm; analyticsVm: root.analyticsModel }
         }
     }
 }
