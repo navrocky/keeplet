@@ -83,8 +83,14 @@ category *Plasma 6 Extensions → Plasma Widgets*. Plasma's *Get New Widgets…*
 products of that category that have a file, so the product must stay published.
 
 Only a release publishes there: the last step of `release.yml` runs `scripts/kde-store-upload.sh`, which
-uploads `keeplet-x.y.z.plasmoid` with its version, archives the older files and adds (or updates)
-a changelog entry `x.y.z` with the tag's notes. Don't upload releases by hand.
+uploads `keeplet-x.y.z.plasmoid` with its version, archives the older files, adds (or updates)
+a changelog entry `x.y.z` with the tag's notes and sets the product's own *Version* field to `x.y.z`.
+Don't upload releases by hand.
+
+The product version is a field of the edit page's main form, which saves only as a whole: the script
+sends the form back with its current values (title, description, license, tags, …) and only the
+version changed, then reads the page again and fails if the version didn't stick or any other field
+changed. It needs `python3` to read the form.
 
 "Archived" means the file's *compatible* checkbox on the edit page is cleared: the store's OCS API,
 which Get New Widgets reads, lists only compatible files, so Plasma offers just the latest version,
