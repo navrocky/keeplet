@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Publishes a .plasmoid on the KDE Store (store.kde.org = Pling/opendesktop): replaces the product's
-# files with it, sets the file version and adds or updates the changelog entry for that version.
+# Publishes a .plasmoid on the KDE Store (store.kde.org = Pling/opendesktop): uploads it with its
+# version, archives the product's older files and adds or updates the changelog entry for the version.
 # Run by .github/workflows/release.yml on a release tag; locally use only --dry-run (docs/release.md).
 #
 # Pling has no write API, so this drives the same AJAX endpoints as the product edit page, signed
@@ -96,24 +96,17 @@ data() { # <data-attribute>; URIs get the product id and the base URL
 }
 add_uri="$(data data-addpploadfile-uri)"
 update_uri="$(data data-updatepploadfile-uri)"
-delete_all_uri="$(data data-deletepploadfiles-uri)"
 collection="$(data data-ppload-collection-id)"
 client_id="$(grep -oP "\\bvar\\s+client_id\\s*=\\s*[\"']\\K[^\"']+" <<<"$edit_page" | head -n1 || true)"
 file_uri="$(grep -oP "\\bvar\\s+fileUri\\s*=\\s*[\"']\\K[^\"']+" <<<"$edit_page" | head -n1 || true)"
 owner_id="$(grep -oP "form\\.append\\([\"']owner_id[\"'],\\s*[\"']\\K[^\"']+" <<<"$edit_page" | head -n1 || true)"
-for var in add_uri update_uri delete_all_uri client_id file_uri owner_id; do
+for var in add_uri update_uri client_id file_uri owner_id; do
     [[ -n "${!var}" ]] || { echo "the edit page has no $var: the store's page changed?" >&2; exit 1; }
 done
 
 if (( dry_run )); then
     echo "== dry run: signed in, upload endpoints found, nothing changed"
     exit 0
-fi
-
-# Only one file, so Get New Widgets offers just this version.
-if [[ -n "$collection" ]]; then
-    echo "== delete the old files"
-    check_status "deleting the old files" ok "$(post_ajax -d "" "$delete_all_uri")"
 fi
 
 echo "== upload $(basename "$file") ($version)"
@@ -132,8 +125,22 @@ registered="$(post_ajax "${register[@]}" "$add_uri")"
 check_status "registering the file" ok "$registered"
 file_id="$(jq -r '.file.id // empty' <<<"$registered")"
 [[ -n "$file_id" ]] || { echo "registering the file returned no file id" >&2; exit 1; }
-check_status "setting the file version" ok \
-    "$(post_ajax --data-urlencode "file_id=$file_id" --data-urlencode "file_version=$version" "$update_uri")"
+check_status "setting the file version" ok "$(post_ajax --data-urlencode "file_id=$file_id" \
+    --data-urlencode "file_version=$version" --data-urlencode ocs_compatible=1 "$update_uri")"
+
+# Plasma's Get New Widgets only sees "compatible" files (the edit page's checkbox), so unchecking it
+# on the older files leaves just this version there, while they stay downloadable on the site.
+# Done after the upload, so the product is never left without a file.
+echo "== archive the older files"
+[[ -n "$collection" ]] || collection="$(jq -r '.file.collection_id // empty' <<<"$uploaded")"
+files="$(get_page -H 'Accept: application/json' -H "Referer: $edit_url" \
+    "$BASE_URL/p/$product/getfilesajax?format=json&ignore_status_code=1&status=all&perpage=1000&collection_id=$collection")"
+check_status "listing the files" success "$files"
+while read -r old_id; do
+    check_status "archiving file $old_id" ok "$(post_ajax --data-urlencode "file_id=$old_id" \
+        --data-urlencode ocs_compatible=0 "$update_uri")"
+done < <(jq -r --arg id "$file_id" \
+    '.files[] | select((.id | tostring) != $id and (.ocs_compatible | tostring) == "1") | .id' <<<"$files")
 
 if [[ -n "$notes" && -s "$notes" ]]; then
     echo "== changelog $version"

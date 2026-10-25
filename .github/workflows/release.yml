@@ -57,7 +57,7 @@ jobs:
           fi
           gh release upload "$TAG" "$asset" dist/SHA256SUMS --clobber
 
-      # Replaces the store's file, so Get New Widgets offers this version (docs/release.md).
+      # Archives the store's older files, so Get New Widgets offers only this version (docs/release.md).
       # notes.md is the tag's message from the step above; absent for a lightweight tag.
       - name: Publish to the KDE Store
         env:

@@ -83,8 +83,13 @@ category *Plasma 6 Extensions → Plasma Widgets*. Plasma's *Get New Widgets…*
 products of that category that have a file, so the product must stay published.
 
 Only a release publishes there: the last step of `release.yml` runs `scripts/kde-store-upload.sh`, which
-replaces the product's files with `keeplet-x.y.z.plasmoid`, sets the file version and adds (or updates)
+uploads `keeplet-x.y.z.plasmoid` with its version, archives the older files and adds (or updates)
 a changelog entry `x.y.z` with the tag's notes. Don't upload releases by hand.
+
+"Archived" means the file's *compatible* checkbox on the edit page is cleared: the store's OCS API,
+which Get New Widgets reads, lists only compatible files, so Plasma offers just the latest version,
+while the older ones stay downloadable on the store page. Nothing is deleted, and the new file is
+uploaded before the old ones are archived, so the product always has a file.
 
 - Pling has no write API (the OCS API is read-only), so the script signs in with e-mail and password —
   repository secrets `KDE_STORE_USERNAME` and `KDE_STORE_PASSWORD` — and calls the AJAX endpoints of
