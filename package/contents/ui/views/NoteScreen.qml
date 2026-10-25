@@ -84,6 +84,48 @@ Rectangle {
         }
     }
 
+    // Keep the text cursor in view: when it leaves the visible part of the note, the view glides to it.
+    // `dy` corrects for a row that is still sliding to its place (target y minus current y).
+    // The fields call it from their `reveal()`; `cursorField` is the last focused one.
+    property Item cursorField: null
+    function revealCursor(field, dy) {
+        if (field === null || !field.activeFocus || list.dragIndex >= 0)
+            return
+        var flick = scroller.contentItem
+        var r = field.cursorRectangle
+        var top = field.mapToItem(flick.contentItem, r.x, r.y).y + (dy || 0)
+        var margin = Kirigami.Units.smallSpacing
+        var y = flick.contentY
+        if (scrollAnim.running)
+            y = scrollAnim.to
+        if (top - margin < y)
+            y = top - margin
+        else if (top + r.height + margin > y + flick.height)
+            y = top + r.height + margin - flick.height
+        y = Math.max(0, Math.min(y, flick.contentHeight - flick.height))
+        if (Math.abs(y - flick.contentY) < 1)
+            return
+        scrollAnim.stop()
+        scrollAnim.from = flick.contentY
+        scrollAnim.to = y
+        scrollAnim.start()
+    }
+    NumberAnimation {
+        id: scrollAnim
+        target: scroller.contentItem
+        property: "contentY"
+        duration: Kirigami.Units.shortDuration
+        easing.type: Easing.OutCubic
+    }
+    Connections {
+        // A growing note (a new item, the list's height animating) can only scroll as far as its height lets.
+        target: scroller.contentItem
+        function onContentHeightChanged() {
+            if (screen.cursorField !== null)
+                screen.cursorField.reveal()
+        }
+    }
+
     Shortcut {
         sequences: [StandardKey.Undo]
         enabled: screen.editor.canUndo
@@ -324,6 +366,14 @@ Rectangle {
                             screen.editor.setText(text)
                     }
                     Keys.onPressed: event => screen.handleUndoKeys(event)
+                    function reveal() { screen.revealCursor(bodyField) }
+                    onCursorRectangleChanged: reveal()
+                    onActiveFocusChanged: {
+                        if (activeFocus) {
+                            screen.cursorField = bodyField
+                            reveal()
+                        }
+                    }
 
                     LinkLayer {
                         anchors.fill: parent
@@ -720,6 +770,15 @@ Rectangle {
                                     onTextChanged: {
                                         if (row.item !== null && text !== row.item.text)
                                             screen.editor.setItemText(row.index, text)
+                                    }
+                                    function reveal() { screen.revealCursor(field, row.targetY - row.y) }
+                                    onCursorRectangleChanged: reveal()
+                                    onActiveFocusChanged: {
+                                        if (activeFocus) {
+                                            screen.cursorField = field
+                                            // A just created row takes its place on the next tick.
+                                            Qt.callLater(reveal)
+                                        }
                                     }
 
                                     LinkLayer {
