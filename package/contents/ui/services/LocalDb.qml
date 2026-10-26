@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.LocalStorage as Sql
 
 // Small key-value store shared by every widget instance (SQLite via LocalStorage).
 // Values are strings; namespaces keep registry, secrets and cache apart.
@@ -10,6 +9,9 @@ import QtQuick.LocalStorage as Sql
 // their turns between them, writes to one key are coalesced (only the newest value is written), and a read
 // of a key with a pending write is answered from memory. Failures are non-fatal: reads resolve "", writes
 // resolve after a warning. drain() runs everything left synchronously (used when the widget goes away).
+//
+// The SQL itself is in LocalDbSqlite.qml, loaded at run time: without the QtQuick.LocalStorage module
+// `available` is false and every operation behaves like a failed one (nothing is stored).
 QtObject {
     id: db
 
@@ -17,7 +19,11 @@ QtObject {
     property var _queue: []
     // "<ns>\u0000<key>" -> the pending write task of that key (also in _queue).
     property var _pendingWrite: ({})
-    property var _handle: null
+
+    // Set by tests to simulate a missing module.
+    property Component _sqlComponent: Qt.createComponent("LocalDbSqlite.qml")
+    readonly property bool available: _sqlComponent !== null && _sqlComponent.status === Component.Ready
+    property var _sql: null
 
     property Timer _pump: Timer {
         interval: 0
@@ -99,48 +105,30 @@ QtObject {
         var result = ""
         try {
             if (task.op === "get")
-                result = _read(task.ns, task.key)
+                result = _backend().read(task.ns, task.key)
             else if (task.op === "set")
-                _set(task.ns, task.key, task.value)
+                _backend().set(task.ns, task.key, task.value)
             else
-                _remove(task.ns, task.key)
+                _backend().remove(task.ns, task.key)
         } catch (e) {
             console.warn("Keeplet: db", task.op, "failed:", e)
         }
         task.resolvers.forEach(function (resolve) { resolve(result) })
     }
 
-    function _open() {
-        if (_handle)
-            return _handle
-        var h = Sql.LocalStorage.openDatabaseSync("keeplet", "", "Keeplet", 16 * 1024 * 1024)
-        h.transaction(function (tx) {
-            tx.executeSql("CREATE TABLE IF NOT EXISTS kv (ns TEXT, key TEXT, value TEXT, PRIMARY KEY (ns, key))")
-        })
-        _handle = h
-        return h
+    // Without the module every call is a no-op (Qt.createComponent has already logged why).
+    readonly property QtObject _noBackend: QtObject {
+        function read(ns, key) { return "" }
+        function set(ns, key, value) {}
+        function remove(ns, key) {}
     }
 
-    function _read(ns, key) {
-        var value = ""
-        _open().readTransaction(function (tx) {
-            var rs = tx.executeSql("SELECT value FROM kv WHERE ns = ? AND key = ?", [ns, key])
-            if (rs.rows.length > 0)
-                value = rs.rows.item(0).value
-        })
-        return value
-    }
-
-    function _set(ns, key, value) {
-        _open().transaction(function (tx) {
-            tx.executeSql("INSERT OR REPLACE INTO kv (ns, key, value) VALUES (?, ?, ?)", [ns, key, value])
-        })
-    }
-
-    function _remove(ns, key) {
-        _open().transaction(function (tx) {
-            tx.executeSql("DELETE FROM kv WHERE ns = ? AND key = ?", [ns, key])
-        })
+    function _backend() {
+        if (!available)
+            return _noBackend
+        if (!_sql)
+            _sql = _sqlComponent.createObject(db)
+        return _sql
     }
 
     Component.onDestruction: drain()

@@ -91,4 +91,17 @@ TestCase {
         compare(got(other.get(ns, "a")), "kept")
         other.destroy()
     }
+
+    function test_withoutTheModuleNothingIsStoredAndNothingFails() {
+        // A component that fails to load stands in for a missing QtQuick.LocalStorage.
+        var db = dbComp.createObject(tc, { _sqlComponent: Qt.createComponent("no-such-file.qml") })
+        verify(!db.available)
+        compare(got(db.set(ns, "a", "lost")), "")
+        compare(got(db.get(ns, "a")), "")
+        db.destroy()
+        var real = dbComp.createObject(tc)
+        verify(real.available)
+        compare(got(real.get(ns, "a")), "")
+        real.destroy()
+    }
 }
