@@ -28,7 +28,11 @@ kpackagetool6 -t Plasma/Applet -i keeplet-X.Y.Z.plasmoid
 ```
 Then add it: right-click the panel or desktop → *Add Widgets…* → *Keeplet*.
 
-Requires KDE Plasma 6.
+Requires KDE Plasma 6 and the Qt module QtQuick.LocalStorage. Kubuntu, Ubuntu and Debian ship it separately
+(the widget tells you when it is missing):
+```sh
+sudo apt install qml6-module-qtquick-localstorage
+```
 
 **Updates:** when a new version is out on the KDE Store, the widget says so; **Update…** opens Plasma's
 *Get New Widgets* dialog on Keeplet, and the new version starts after Plasma is restarted or on the next

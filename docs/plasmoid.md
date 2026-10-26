@@ -10,9 +10,9 @@ package/
     ├── ui/
     │   ├── main.qml               PlasmoidItem: wires services and ViewModels, picks the View
     │   ├── viewmodel/             AccountsViewModel, NotesViewModel, NoteEditorViewModel, UpdateViewModel (no visuals)
-    │   ├── views/                 SignInView, NotesRoot (navigation), NotesScreen, LabelRail, NoteScreen (editor),
+    │   ├── views/                 SignInView, MissingStorageView, NotesRoot (navigation), NotesScreen, LabelRail, NoteScreen (editor),
     │   │                          NoteCard, ColorPicker, keepColors.js (layout + bindings)
-    │   ├── services/              LocalDb, SecretStore, AccountsService, NotesCache, BrowserSignIn, UpdateCheck
+    │   ├── services/              LocalDb (+ LocalDbSqlite), SecretStore, AccountsService, NotesCache, BrowserSignIn, UpdateCheck
     │   └── configGeneral.qml      settings page
     └── config/                    main.xml (KConfigXT schema), config.qml (config pages)
 ```
@@ -20,7 +20,9 @@ package/
 Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved for KDE projects).
 
 ## Conventions
-- Only modules shipped with Plasma 6 / Qt 6 / Kirigami. No compiled plugins.
+- Only modules shipped with Plasma 6 / Qt 6 / Kirigami. No compiled plugins. Distributions split Qt's QML modules into
+  packages: load an optional one through `Qt.createComponent` of the single file that imports it (see `LocalDb`,
+  `BrowserSignIn`, `LinkPreview`).
 - HTTP via `XMLHttpRequest`; JSON in/out. Don't use `Content-Type` charset tricks: Qt appends `;charset=UTF-8`.
 - D-Bus via `org.kde.plasma.workspace.dbus` (see [auth.md](auth.md) for its quirks).
 - MVVM layering rules are in [architecture.md](architecture.md): `i18n()` only in Views; ViewModels
@@ -48,6 +50,10 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 - SQLite itself still runs on the UI thread: `QtQuick.LocalStorage` has only a synchronous API and its module cannot be
   imported in a `WorkerScript` (checked on Qt 6.11). Measured cost of that: ~5 ms to write a 1.6 MB snapshot (5000 notes),
   `JSON.stringify` of it ~21 ms. If it ever matters, only `LocalDb` has to change.
+- `QtQuick.LocalStorage` is a separate package on Debian/Ubuntu/Kubuntu (`qml6-module-qtquick-localstorage`, not installed
+  by default; openSUSE: `qt6-declarative-imports`). Only `services/LocalDbSqlite.qml` imports it, and `LocalDb` loads it
+  with `Qt.createComponent`: when it's missing, `LocalDb.available` is false, operations store nothing, and `main.qml` /
+  the Accounts page show `MissingStorageView` with the install command instead of failing to load.
 - Test doubles for services must return Promises too (see `tests/tst_accountsviewmodel.qml`); `tests-ui/tst_localdb.qml` runs the real `LocalDb`.
 
 ## Colors
@@ -128,6 +134,10 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 - `scripts/test-ui.sh` runs `tests-ui/` with synthetic mouse events on the real screens (needs the Plasma QML modules).
 
 ## Gotchas
+- The widget icon is `"Icon": "/icons/keeplet.svg"` in metadata.json: a leading `/` means a file in `contents/`. The widget
+  explorer understands it (Plasma 6.0+), the About page only since 6.7 (bug 509896; before that it shows a generic icon),
+  and the applet itself keeps the raw string, so `main.qml` sets `Plasmoid.icon` to the real URL. A theme name would need
+  the icon installed into the icon theme, which a KDE Store install doesn't do.
 - `console.log` goes to journald unless `QT_FORCE_STDERR_LOGGING=1` is set.
 - Offscreen preview harnesses (`QT_QPA_PLATFORM=offscreen qml6 harness.qml` + `grabToImage`) render no icons unless the
   harness also loads the Plasma views (e.g. `NotesRoot`); a bare `Kirigami.Icon` stays empty there. Not a widget bug.
