@@ -1,3 +1,8 @@
+# 0.9.1 (2026-10-26)
+
+- Fix the widget failing to load on Kubuntu, Ubuntu and Debian without the QtQuick.LocalStorage module: it now says which package to install
+- Fix the Keeplet icon missing from the widget list when installed from the KDE Store
+
 # 0.9.0 (2026-10-25)
 
 - Tells when a new version is out on the KDE Store; Update… installs it through Plasma's Get New Widgets dialog (can be turned off in the settings)
