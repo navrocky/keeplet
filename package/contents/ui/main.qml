@@ -100,15 +100,16 @@ PlasmoidItem {
         Layout.minimumWidth: Kirigami.Units.gridUnit * 18
         Layout.minimumHeight: Kirigami.Units.gridUnit * 16
 
-        // loading -> sign-in form or notes, cross-faded.
-        readonly property string target: !accountsVm.ready ? "loading"
+        // loading -> sign-in form or notes, cross-faded; nothing works without the database module.
+        readonly property string target: !localDb.available ? "nostorage"
+                                         : !accountsVm.ready ? "loading"
                                          : (accountsVm.signedIn && !accountsVm.signInRequested ? "notes" : "signin")
 
         QQC2.StackView {
             id: stack
             anchors.fill: parent
             anchors.margins: Kirigami.Units.largeSpacing
-            initialItem: loadingScreen
+            initialItem: localDb.available ? loadingScreen : noStorageView
 
             replaceEnter: Transition {
                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Kirigami.Units.longDuration }
@@ -119,13 +120,19 @@ PlasmoidItem {
         }
 
         onTargetChanged: {
-            var c = target === "notes" ? notesRoot : (target === "signin" ? signInView : loadingScreen)
+            var c = target === "notes" ? notesRoot : target === "signin" ? signInView
+                  : target === "nostorage" ? noStorageView : loadingScreen
             stack.replace(null, c)
         }
 
         Component {
             id: loadingScreen
             Item {}
+        }
+
+        Component {
+            id: noStorageView
+            MissingStorageView {}
         }
 
         Component {

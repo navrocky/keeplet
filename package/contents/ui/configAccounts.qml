@@ -23,10 +23,18 @@ KCM.SimpleKCM {
 
     // A centered column of a readable width, like the "About" page, instead of stretching over the dialog.
     Item {
-        implicitHeight: settings.implicitHeight + Kirigami.Units.largeSpacing * 2
+        implicitHeight: (localDb.available ? settings.implicitHeight : missing.implicitHeight) + Kirigami.Units.largeSpacing * 2
+
+        MissingStorageView {
+            id: missing
+            y: Kirigami.Units.largeSpacing
+            width: parent.width
+            visible: !localDb.available
+        }
 
         AccountsSettings {
             id: settings
+            visible: localDb.available
             y: Kirigami.Units.largeSpacing
             width: Math.min(parent.width - Kirigami.Units.gridUnit * 2, Kirigami.Units.gridUnit * 30)
             anchors.horizontalCenter: parent.horizontalCenter
