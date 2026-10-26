@@ -19,11 +19,6 @@ if kpackagetool6 -t Plasma/Applet -s "$id" >/dev/null 2>&1; then
 else
     kpackagetool6 -t Plasma/Applet -i "$src"
 fi
-# The widget explorer looks the icon up by the name in metadata.json ("keeplet"): put it into the user's icon theme.
-icons="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
-mkdir -p "$icons"
-cp "$root/art/keeplet.svg" "$root/art/keeplet-symbolic.svg" "$icons/"
-gtk-update-icon-cache -q -t "${icons%/scalable/apps}" 2>/dev/null || true
 
 echo "installed $id from $src"
 echo "plasmashell caches QML: run 'systemctl --user restart plasma-plasmashell' to reload a widget already on the panel"

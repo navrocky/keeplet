@@ -10,7 +10,8 @@ import "services"
 PlasmoidItem {
     id: root
 
-    // The packaged icon (art/ has the sources); the theme name "keeplet" in metadata.json needs scripts/install.sh.
+    // The packaged icon (art/ has the sources). metadata.json names the same file as "/icons/keeplet.svg" (relative to
+    // contents/, understood by the widget explorer), but the applet keeps that string as is, so set a real URL here.
     Plasmoid.icon: Qt.resolvedUrl("../icons/keeplet.svg")
     toolTipSubText: accountsVm.signedIn
                     ? accountsVm.accounts.map(function (a) { return a.displayName }).join(", ")

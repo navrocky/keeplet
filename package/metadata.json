@@ -10,7 +10,7 @@
         "Category": "Utilities",
         "Description": "Google Keep notes on your desktop",
         "Description[ru]": "Заметки Google Keep на рабочем столе",
-        "Icon": "keeplet",
+        "Icon": "/icons/keeplet.svg",
         "Id": "io.github.navrocky.keeplet",
         "License": "MIT",
         "Name": "Keeplet",
