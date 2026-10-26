@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
+import org.kde.plasma.plasmoid
 import "viewmodel"
 import "services"
 
@@ -32,6 +33,27 @@ KCM.SimpleKCM {
             id: linkPreviews
             Kirigami.FormData.label: i18n("Links:")
             text: i18n("Show a preview of a web page when the pointer rests on its link")
+        }
+        QQC2.Label {
+            visible: forgetSignIns.visible
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            text: i18n("“Sign in” in a preview opens the site in a window; the sign-in is kept for later previews.")
+        }
+        QQC2.Button {
+            id: forgetSignIns
+            // Previews need QtWebEngine.
+            visible: Qt.createComponent("views/PreviewProfile.qml").status === Component.Ready
+            property bool done: false
+            icon.name: done ? "dialog-ok" : "edit-clear-history"
+            text: done ? i18n("Signed out of all sites") : i18n("Forget sign-ins on sites")
+            enabled: !done
+            onClicked: {
+                // The widget does it: see main.qml.
+                Plasmoid.configuration.forgetSiteSignIns = Plasmoid.configuration.forgetSiteSignIns + 1
+                done = true
+            }
         }
         QQC2.CheckBox {
             id: checkUpdates

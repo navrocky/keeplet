@@ -84,6 +84,23 @@ PlasmoidItem {
         notes: notesVm
     }
 
+    // "Forget sign-ins on sites" in the settings. The dialog has a QML engine of its own and can't open the previews'
+    // profile (one per process, see views/previewProfile.js), so it asks the widget.
+    Connections {
+        target: Plasmoid.configuration
+        function onForgetSiteSignInsChanged() {
+            var c = Qt.createComponent("views/PreviewSignOut.qml")
+            if (c.status !== Component.Ready)
+                return
+            var job = c.createObject(root)
+            job.finished.connect(function (ok) {
+                if (!ok)
+                    console.warn("Keeplet: could not sign out of the sites in link previews")
+                job.destroy()
+            })
+        }
+    }
+
     // Accounts created by the single-account layout of earlier versions.
     Component.onCompleted: {
         accountsService.migrateLegacy(Plasmoid.configuration).then(function (migrated) {

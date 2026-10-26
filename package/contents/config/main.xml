@@ -19,6 +19,11 @@
       <label>Preview web links on hover</label>
       <default>true</default>
     </entry>
+    <!-- Bumped by the settings dialog: the widget then signs out of every site in the link previews' profile. -->
+    <entry name="forgetSiteSignIns" type="Int">
+      <label>Forget site sign-ins counter</label>
+      <default>0</default>
+    </entry>
     <entry name="checkUpdates" type="Bool">
       <label>Tell when a new version is out on the KDE Store</label>
       <default>true</default>
