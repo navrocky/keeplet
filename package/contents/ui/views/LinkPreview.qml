@@ -13,6 +13,7 @@ QQC2.Popup {
 
     property bool active: true                    // the user's setting
     property var pageComponent: null
+    property var signInComponent: null
     readonly property bool available: pageComponent !== null
     property string url: ""                       // the page shown
 
@@ -87,10 +88,19 @@ QQC2.Popup {
 
     Component.onCompleted: {
         var c = Qt.createComponent("LinkPreviewPage.qml")
-        if (c.status === Component.Ready)
+        if (c.status === Component.Ready) {
             pageComponent = c
-        else
+            signInComponent = Qt.createComponent("LinkSignInWindow.qml")
+        } else {
             console.log("Keeplet: link previews are off, QtWebEngine is not available")
+        }
+    }
+
+    // The site in a window with the previews' profile, so that the user can sign in to it.
+    function signIn() {
+        if (signInComponent && signInComponent.status === Component.Ready)
+            signInComponent.createObject(popup, { url: url })
+        dismiss()
     }
 
     function openInBrowser() {
@@ -139,6 +149,12 @@ QQC2.Popup {
                     opacity: 0.7
                     elide: Text.ElideMiddle
                 }
+            }
+            PlasmaComponents.ToolButton {
+                icon.name: "user-identity"
+                onClicked: popup.signIn()
+                PlasmaComponents.ToolTip.text: i18n("Sign in to this site to see its pages in previews")
+                PlasmaComponents.ToolTip.visible: hovered
             }
             PlasmaComponents.ToolButton {
                 icon.name: "internet-web-browser"
