@@ -1,8 +1,9 @@
 import QtQuick
 import QtWebEngine
+import "previewProfile.js" as PreviewProfile
 
-// The page shown by LinkPreview; the only view file that imports QtWebEngine, so the widget works without it
-// (LinkPreview then shows nothing). A private profile (nothing is stored), muted, no new windows; the page is laid
+// The page shown by LinkPreview; loaded on demand, so the widget works without QtWebEngine (LinkPreview then shows
+// nothing). The preview profile keeps the sign-ins made with "Sign in…"; muted, no new windows; the page is laid
 // out for twice the popup's width and scaled down, so it looks like it does in a browser.
 Item {
     id: page
@@ -13,15 +14,10 @@ Item {
     readonly property bool loading: view.loading
     property bool failed: false
 
-    WebEngineProfile {
-        id: privateProfile
-        offTheRecord: true
-    }
-
     WebEngineView {
         id: view
         anchors.fill: parent
-        profile: privateProfile
+        profile: PreviewProfile.get()
         zoomFactor: 0.5
         audioMuted: true
         url: page.url !== "" ? page.url : "about:blank"
