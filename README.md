@@ -89,6 +89,10 @@ such an account deletes its notes; there is no backup or export yet.
 - Right-click a note for pin, color, archive and trash. In the trash: restore, delete forever, or **Empty trash**.
 - The tag button in an open note switches its labels on and off.
 - The search box filters the notes of the selected group.
+- Rest the pointer on a web link to see a **preview** of the page (needs QtWebEngine). If the site wants you to
+  sign in (Jira, Confluence, GitLab…), click the person button in the preview: the site opens in a window, sign in
+  there and close it — later previews of that site show its pages. These sign-ins are kept on this computer, for
+  previews only; settings → General → **Forget sign-ins on sites** signs you out of all of them.
 
 _Creating and renaming labels, and reordering checklist items, are not available yet._
 
@@ -96,7 +100,9 @@ _Creating and renaming labels, and reordering checklist items, are not available
 Keeplet talks only to the services of your accounts and, once a day, to store.kde.org to see if a new
 version is out (can be turned off). Optionally, and only if you agree when the widget asks,
 it sends anonymous usage statistics (which features are used, error codes, widget version and language;
-never note contents, labels or account details) to Google Analytics. You can turn it off in the widget
+never note contents, labels or account details) to Google Analytics.
+Link previews load the page of the link you point at, signed in if you signed in to that site for previews; their
+cookies are stored in `~/.local/share/plasmashell/QtWebEngine/keeplet-preview/`. You can turn it off in the widget
 settings → General → *Statistics*. Details: [docs/analytics.md](docs/analytics.md).
 
 ## Uninstall

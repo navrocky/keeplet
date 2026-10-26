@@ -22,7 +22,7 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
 ## Conventions
 - Only modules shipped with Plasma 6 / Qt 6 / Kirigami. No compiled plugins. Distributions split Qt's QML modules into
   packages: load an optional one through `Qt.createComponent` of the single file that imports it (see `LocalDb`,
-  `BrowserSignIn`, `LinkPreview`).
+  `BrowserSignIn`, `LinkPreview`, `LinkSignInWindow`).
 - HTTP via `XMLHttpRequest`; JSON in/out. Don't use `Content-Type` charset tricks: Qt appends `;charset=UTF-8`.
 - D-Bus via `org.kde.plasma.workspace.dbus` (see [auth.md](auth.md) for its quirks).
 - MVVM layering rules are in [architecture.md](architecture.md): `i18n()` only in Views; ViewModels
@@ -102,9 +102,17 @@ Plugin id: `io.github.navrocky.keeplet` (the `org.kde.*` namespace is reserved f
   `hover(url, item, rect)` / `unhover()`; it opens after the pointer rests ~0.7 s, next to the link (below, or above
   when there is more room; never over it), and closes ~0.4 s after the pointer left both the link and the popup, on a
   press in the field, on scroll and when the screen changes. Closing unloads the page. The page is
-  `LinkPreviewPage.qml`, the second (and only other) file importing `QtWebEngine`: off-the-record profile, muted,
-  no new windows, `zoomFactor` 0.5. Without QtWebEngine the component does not load and previews are off.
-  Setting: `linkPreviews` (General, default on) → `NotesViewModel.linkPreviews` → `LinkPreview.active`.
+  `LinkPreviewPage.qml`: muted, no new windows, `zoomFactor` 0.5. Without QtWebEngine the component does not load
+  and previews are off. Setting: `linkPreviews` (General, default on) → `NotesViewModel.linkPreviews` → `LinkPreview.active`.
+- Previews use one persistent web profile, `PreviewProfile.qml` (storage `keeplet-preview`, cookies kept), created
+  once per process by `views/previewProfile.js` (`.pragma library`): all widgets share plasmashell's QML engine, and
+  QtWebEngine can't open one storage from two profiles (measured on Qt 6.12: a second `WebEngineProfile` hangs its
+  pages, a second `WebEngineProfilePrototype.instance()` is null). The settings dialog has an engine of its own, so it
+  never touches the profile. Qt ≥ 6.9 logs a deprecation hint for `WebEngineProfile`; it is harmless.
+- **Sign in…** (the person button in the preview header) opens `LinkSignInWindow.qml`: the link in a normal window with
+  the same profile; new-window requests stay in it (single sign-on). Settings → **Forget sign-ins on sites** bumps
+  `forgetSiteSignIns`; `main.qml` then runs `PreviewSignOut.qml`, which clears the profile's cookies through the DevTools
+  protocol of a hidden view (`Network.clearBrowserCookies`; QML has no cookie API) and its HTTP cache.
 - New versions: `UpdateCheck` reads the product's *Version* on the KDE Store (`core/updates.js`, OCS
   `content/data/2379427`) at most once a day for all instances (a failed check is retried on the next 3-hourly
   poll); `UpdateViewModel.available` when it is newer than `Plasmoid.metaData.version` and not dismissed. Local
