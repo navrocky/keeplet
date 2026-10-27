@@ -1,3 +1,7 @@
+# 0.10.0 (2026-10-27)
+
+- Link previews can stay signed in to sites: Sign in… in a preview opens the site in a window, cookies are kept and shared by every widget; the settings have Forget sign-ins on sites
+
 # 0.9.1 (2026-10-26)
 
 - Fix the widget failing to load on Kubuntu, Ubuntu and Debian without the QtQuick.LocalStorage module: it now says which package to install
